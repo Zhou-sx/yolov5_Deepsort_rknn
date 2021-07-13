@@ -10,15 +10,15 @@ using namespace std;
 
 extern bool bReading;
 extern bool bDetecting;     // 目标检测进程状态
-// 开始 结束时间 ns
-extern double start_time;
+extern double start_time;   // 开始 结束时间 ns
 extern video_property video_probs; // 视频属性类
 // 多线程控制相关
-extern int idxOutputImage;            // next frame index to be output 保证queueDetOut_server序号正确
+extern int idxOutputImage;          // next frame index to be output 保证queueDetOut_server序号正确
 extern mutex mtxQueueInput;               
 extern queue<input_image> queueInput;  // input queue
 extern mutex mtxQueueDetOut;
 extern queue<detect_result_group_t> queueDetOut;// Det output queue
+extern bool ISLOOP;
 
 int Yolo::detect_process(){
 	
@@ -110,12 +110,12 @@ int Yolo::detect_process(){
 		}
 		mtxQueueDetOut.lock();
 		queueDetOut.push(detect_result_group);
+		mtxQueueDetOut.unlock();
 		printf("%f NPU(%d) performance : %f (%d)\n", what_time_is_it_now()/1000, _cpu_id, npu_performance, detect_result_group.id);
 		// draw_image(input.img_src, post_do.scale, nms_res, nboxes_left, 0.3);
 		idxOutputImage = idxOutputImage + 1;
-		mtxQueueDetOut.unlock();
-		if(input.index == video_probs.Frame_cnt-1){
-			break; // 不加也可 queueInput.empty() + breading可以跳出
+		if(ISLOOP && idxOutputImage == video_probs.Frame_cnt){
+			idxOutputImage = 0;
 		}
 	}
 	cout << "Detect is over." << endl;

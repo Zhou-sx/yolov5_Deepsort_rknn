@@ -8,6 +8,8 @@ struct video_property;
 extern queue<detect_result_group_t> queueDetOut;  // output queue
 extern queue<track_result_group_t> queueOutput;  // output queue 目标追踪输出队列
 extern video_property video_probs;       // 视频属性类
+extern mutex mtxQueueDetOut;
+extern mutex mtxQueueOutput;
 extern bool bDetecting;                  // 目标检测进程状态
 extern bool bTracking;                   // 目标追踪进程状态               
 extern double end_time;                  // 整个视频追踪结束
@@ -195,8 +197,12 @@ int Sort::track_process()
 		track_result_group_t track_result_group;
 		track_result_group.img = queueDetOut.front().img;
 		track_result_group.results = frameTrackingResult;
+		mtxQueueOutput.lock();
 		queueOutput.push(track_result_group);
+		mtxQueueOutput.unlock();
+		mtxQueueDetOut.lock();
 		queueDetOut.pop();
+		mtxQueueDetOut.unlock();
 	}
 	return 0;
 }

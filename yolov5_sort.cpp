@@ -40,7 +40,7 @@ mutex mtxQueueDetOut;
 queue<detect_result_group_t> queueDetOut;  // output queue
 mutex mtxQueueOutput;
 queue<track_result_group_t> queueOutput;  // output queue 目标追踪输出队列
-
+bool ISLOOP = false;
 
 
 void videoRead(const char *video_name, int cpuid);

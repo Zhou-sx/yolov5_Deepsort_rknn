@@ -18,7 +18,7 @@ extern bool bReading;      // flag of input
 extern bool bDetecting;    // 目标检测进程状态
 extern bool bTracking;
 extern int idxInputImage;  // image index of input video
-
+extern bool ISLOOP;
 
 
 /*---------------------------------------------------------
@@ -104,6 +104,9 @@ void videoResize(int cpuid){
 		queueInput.push(input_image(idxInputImage, img_src, img_pad));
 		mtxQueueInput.unlock();
 		idxInputImage++;
+		if(ISLOOP && idxInputImage == video_probs.Frame_cnt){
+			idxInputImage = 0;
+		}
 	}
 	bReading = false;
 	cout << "VideoResize is over." << endl;
