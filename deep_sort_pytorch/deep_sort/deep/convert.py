@@ -33,6 +33,7 @@ def export_rknn():
 
     # pre-process config
     print('--> Config model')
+    # 这个模型 不要归一化 归一化之后推理结果完全不对
     rknn.config(mean_values=[[0, 0, 0]], std_values=[[1, 1, 1]], quantized_dtype='asymmetric_quantized-u8',
                 optimization_level=1, batch_size=50, epochs=-1, target_platform=['rk1808'])
     print('done')
@@ -89,7 +90,8 @@ class preprocess(object):
             4. normalize
         """
         def _resize(im, size):
-            return cv2.resize(im.astype(np.float32)/255., size)
+            # 取消归一化
+            return cv2.resize(im.astype(np.float32), size)
         im_batch = torch.cat([self.norm(_resize(im, self.size)).unsqueeze(
             0) for im in im_crops], dim=0).float()
         return im_batch
@@ -104,9 +106,12 @@ def inference_rknn():
     rknn = RKNN()
     ret = rknn.load_rknn(rknn_path)
 
+    # 输入图像 1
     img_raw = [cv2.imread("demo.jpg")]
     pre_process = preprocess()
-    img = pre_process.preprocess(img_raw).numpy()
+    img = pre_process.preprocess(img_raw).numpy()[0]
+    # 输入图像 2
+    # img = cv2.imread('demo2.jpg').transpose((2,1,0))
 
     # Init runtime environment
     print('--> Init runtime environment')
@@ -119,7 +124,7 @@ def inference_rknn():
     # Inference
     print('--> Running model')
 
-    outputs = rknn.inference(inputs=[img])
+    outputs = rknn.inference(inputs=[img])  # 注意 rknn.inference()有时候检查不出输入的维度错误 当[1,...,...]时特别小心
     print('done')
 
     rknn.release()
@@ -137,14 +142,16 @@ def inference_pt():
     else:
         ftrace = torch.load(pt_path, map_location=torch.device('cuda'))
     net.eval()
-    # 输入图像
+    # 输入图像 1
     img_raw = [cv2.imread("demo.jpg")]
     pre_process = preprocess()
     img = pre_process.preprocess(img_raw)
-    #
+    # 输入图像 2
+    # img = [cv2.imread('demo2.jpg').transpose((2,1,0))]
+
     with torch.no_grad():
         if mode == 0:
-            outputs = net(img).numpy()
+            outputs = net(torch.Tensor(img)).numpy()
         else:
             outputs = ftrace.forward(img).numpy()
     return outputs
@@ -158,5 +165,6 @@ if __name__ == '__main__':
     # 测试推理
     res_rknn = inference_rknn()
     res_pt = inference_pt()
+    cmp = res_rknn[0] - res_pt
     pass
 
