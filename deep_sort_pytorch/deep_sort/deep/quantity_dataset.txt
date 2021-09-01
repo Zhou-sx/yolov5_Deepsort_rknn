@@ -1,0 +1,1 @@
+./data/Infrared/shenzhen_1123day_morning_sunny_21_107.jpg

@@ -1,0 +1,7 @@
+.idea/
+*.mp4
+*.rknn
+ckpt.pt
+./deep_sort_pytorch/deep_sort/deep/data/
+!/deep_sort_pytorch/deep_sort/deep/data/Infrared/test/shenzhen_1123day_morning_sunny_21_101.jpg
+!/deep_sort_pytorch/deep_sort/deep/data/Infrared/shenzhen_1123day_morning_sunny_21_0.jpg

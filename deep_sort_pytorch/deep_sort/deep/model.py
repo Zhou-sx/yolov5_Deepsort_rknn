@@ -94,7 +94,9 @@ class Net(nn.Module):
         x = x.view(x.size(0), -1)
         # B x 128
         if self.reid:
-            x = x.div(x.norm(p=2, dim=1, keepdim=True))
+            # print('origin: {}'.format(x.norm(p=2, dim=1, keepdim=True)))
+            # print(torch.sqrt(torch.sum(torch.square(x))))
+            x = x.div(torch.sqrt(torch.sum(x * x)))
             return x
         # classifier
         x = self.classifier(x)
