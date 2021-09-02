@@ -2,21 +2,28 @@ import numpy as np
 import torch
 
 from .deep.feature_extractor import Extractor
+from .deep.preprocess_extractor import preprocess
 from .sort.nn_matching import NearestNeighborDistanceMetric
 from .sort.detection import Detection
 from .sort.tracker import Tracker
-
 
 __all__ = ['DeepSort']
 
 
 class DeepSort(object):
-    def __init__(self, model_path, max_dist=0.2, min_confidence=0.3, nms_max_overlap=1.0, max_iou_distance=0.7, max_age=70, n_init=3, nn_budget=100, use_cuda=True):
-        #model_path是“deep_sort_pytorch/deep_sort/deep/checkpoint/ckpt.t7”文件夹下的权重文件
+    # 不用model_path 初始化了 直接传入一个 Rknn 对象
+    # 使用ckpt.t7 需要改model回model_path
+    def __init__(self, model, max_dist=0.2, min_confidence=0.3, nms_max_overlap=1.0, max_iou_distance=0.7, max_age=70, n_init=3, nn_budget=100, use_cuda=True):
+        # model_path是“deep_sort_pytorch/deep_sort/deep/checkpoint/ckpt.t7”文件夹下的权重文件
         self.min_confidence = min_confidence
         self.nms_max_overlap = nms_max_overlap
 
-        self.extractor = Extractor(model_path, use_cuda=use_cuda)
+        # case: ckpt.t7
+        # self.extractor = Extractor(model_path, use_cuda=use_cuda)
+
+        # case: .rknn
+        self.preprocess = preprocess()  # 使用.rknn 的预处理文件
+        self.extractor = model  # changed 直接传入一个 Rknn 对象
 
         max_cosine_distance = max_dist
         metric = NearestNeighborDistanceMetric(
@@ -63,8 +70,8 @@ class DeepSort(object):
     def _xywh_to_tlwh(bbox_xywh):
         if isinstance(bbox_xywh, np.ndarray):
             bbox_tlwh = bbox_xywh.copy()
-        elif isinstance(bbox_xywh, torch.Tensor):
-            bbox_tlwh = bbox_xywh.clone()
+        # elif isinstance(bbox_xywh, torch.Tensor):
+        #     bbox_tlwh = bbox_xywh.clone()
         bbox_tlwh[:, 0] = bbox_xywh[:, 0] - bbox_xywh[:, 2] / 2.
         bbox_tlwh[:, 1] = bbox_xywh[:, 1] - bbox_xywh[:, 3] / 2.
         return bbox_tlwh
@@ -95,7 +102,6 @@ class DeepSort(object):
 
     def _xyxy_to_tlwh(self, bbox_xyxy):
         x1, y1, x2, y2 = bbox_xyxy
-
         t = x1
         l = y1
         w = int(x2 - x1)
@@ -109,7 +115,15 @@ class DeepSort(object):
             im = ori_img[y1:y2, x1:x2]
             im_crops.append(im)
         if im_crops:
-            features = self.extractor(im_crops)
+            # case: ckpt.t7
+            # features = self.extractor(im_crops)
+
+            # case: .rknn
+            # 使用.rknn作extractor 需要增加数据前处理
+            im_crops = self.preprocess.preprocess(im_crops)
+            features = self.extractor(inputs=[im_crops])
+            print("第二个RKNN调用成功!")
+
         else:
             features = np.array([])
         return features

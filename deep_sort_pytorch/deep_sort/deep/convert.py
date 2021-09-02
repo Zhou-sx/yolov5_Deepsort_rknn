@@ -72,29 +72,38 @@ def export_rknn():
     return
 
 class preprocess(object):
+    """
+        use Numpy instead of Torch.
+    """
     def __init__(self):
         super(preprocess, self).__init__()
         self.size = (64, 128)
-        self.norm = transforms.Compose([
-            transforms.ToTensor(),
-            transforms.Normalize([0.485, 0.456, 0.406], [0.229, 0.224, 0.225]),
-        ])
+        self.mean = [0.485, 0.456, 0.406]
+        self.std = [0.229, 0.224, 0.225]
 
     def preprocess(self, im_crops):
         """
         TODO:
-            1. to float with scale from 0 to 1
+            1. to float with scale from 0 to 1 (delete)
             2. resize to (64, 128) as Market1501 dataset did
-            3. concatenate to a numpy array
-            3. to torch Tensor
-            4. normalize
+            3. normalize
+            4. concatenate to a numpy array
         """
         def _resize(im, size):
             # 取消归一化
             return cv2.resize(im.astype(np.float32), size)
-        im_batch = torch.cat([self.norm(_resize(im, self.size)).unsqueeze(
-            0) for im in im_crops], dim=0).float()
-        return im_batch
+        # im_batch = torch.cat([self.norm(_resize(im, self.size)).unsqueeze(
+        #     0) for im in im_crops], dim=0).float()
+        _batch = []
+        for im in im_crops:
+            _im = _resize(im, self.size)
+            for cn in range(3):
+                _im[..., cn] = (_im[..., cn] - self.mean[cn]) / self.std[cn]
+            if not _batch:
+                _batch = _im
+            else:
+                np.concatenate(_batch, _im)
+        return _batch
 
 
 def inference_rknn():
@@ -109,7 +118,7 @@ def inference_rknn():
     # 输入图像 1
     img_raw = [cv2.imread("demo.jpg")]
     pre_process = preprocess()
-    img = pre_process.preprocess(img_raw).numpy()[0]
+    img = pre_process.preprocess(img_raw)
     # 输入图像 2
     # img = cv2.imread('demo2.jpg').transpose((2,1,0))
 
@@ -124,7 +133,7 @@ def inference_rknn():
     # Inference
     print('--> Running model')
 
-    outputs = rknn.inference(inputs=[img])  # 注意 rknn.inference()有时候检查不出输入的维度错误 当[1,...,...]时特别小心
+    outputs = rknn.inference(inputs=[img])
     print('done')
 
     rknn.release()
@@ -159,12 +168,12 @@ def inference_pt():
 
 if __name__ == '__main__':
     # 导出.pt 模型
-    export_pytorch()
+    # export_pytorch()
     # 导出.rknn 模型
-    export_rknn()
+    # export_rknn()
     # 测试推理
     res_rknn = inference_rknn()
-    res_pt = inference_pt()
-    cmp = res_rknn[0] - res_pt
+    # res_pt = inference_pt()
+    # cmp = res_rknn[0] - res_pt
     pass
 
