@@ -30,8 +30,5 @@ class preprocess(object):
             _im = _resize(im, self.size)
             for cn in range(3):
                 _im[..., cn] = (_im[..., cn] - self.mean[cn]) / self.std[cn]
-            if not _batch:
-                _batch = _im
-            else:
-                np.concatenate(_batch, _im)
+            _batch.append(_im)
         return _batch
