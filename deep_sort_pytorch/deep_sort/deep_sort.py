@@ -121,8 +121,9 @@ class DeepSort(object):
             # case: .rknn
             # 使用.rknn作extractor 需要增加数据前处理
             im_crops = self.preprocess.preprocess(im_crops)
-            features = self.extractor(inputs=[im_crops])
-            print("第二个RKNN调用成功!")
+            # features = self.extractor(inputs=im_crops)  # 维度不对 删除第一维
+            features = np.squeeze(np.array(self.extractor.inference(inputs=im_crops)), axis=0)
+            # print("第二个RKNN调用成功!")
 
         else:
             features = np.array([])
