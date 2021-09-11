@@ -11,19 +11,24 @@ __all__ = ['DeepSort']
 
 
 class DeepSort(object):
-    # 不用model_path 初始化了 直接传入一个 Rknn 对象
-    # 使用ckpt.t7 需要改model回model_path
-    def __init__(self, model, max_dist=0.2, min_confidence=0.3, nms_max_overlap=1.0, max_iou_distance=0.7, max_age=70, n_init=3, nn_budget=100, use_cuda=True):
-        # model_path是“deep_sort_pytorch/deep_sort/deep/checkpoint/ckpt.t7”文件夹下的权重文件
+    # 增加了 use_rknn 提升了Deepsort类的兼容性
+    # <1> use_rknn=False
+    #       使用ckpt.t7 model时model_path权重文件路径
+    # <2> use_rknn=True
+    #       使用ckpt.rknn直接传入一个 Rknn 对象
+
+    def __init__(self, model, max_dist=0.2, min_confidence=0.3, nms_max_overlap=1.0, max_iou_distance=0.7,
+                 max_age=70, n_init=3, nn_budget=100, use_cuda=False, use_rknn=False):
         self.min_confidence = min_confidence
         self.nms_max_overlap = nms_max_overlap
-
+        self.use_rknn = use_rknn
         # case: ckpt.t7
-        # self.extractor = Extractor(model_path, use_cuda=use_cuda)
-
+        if not use_rknn:
+            self.extractor = Extractor(model, use_cuda=use_cuda)
         # case: .rknn
-        self.preprocess = preprocess()  # 使用.rknn 的预处理文件
-        self.extractor = model  # changed 直接传入一个 Rknn 对象
+        else:
+            self.preprocess = preprocess()  # 使用.rknn 的预处理文件
+            self.extractor = model  # changed 直接传入一个 Rknn 对象
 
         max_cosine_distance = max_dist
         metric = NearestNeighborDistanceMetric(
@@ -70,8 +75,8 @@ class DeepSort(object):
     def _xywh_to_tlwh(bbox_xywh):
         if isinstance(bbox_xywh, np.ndarray):
             bbox_tlwh = bbox_xywh.copy()
-        # elif isinstance(bbox_xywh, torch.Tensor):
-        #     bbox_tlwh = bbox_xywh.clone()
+        elif isinstance(bbox_xywh, torch.Tensor):
+            bbox_tlwh = bbox_xywh.clone()
         bbox_tlwh[:, 0] = bbox_xywh[:, 0] - bbox_xywh[:, 2] / 2.
         bbox_tlwh[:, 1] = bbox_xywh[:, 1] - bbox_xywh[:, 3] / 2.
         return bbox_tlwh
@@ -116,14 +121,25 @@ class DeepSort(object):
             im_crops.append(im)
         if im_crops:
             # case: ckpt.t7
-            # features = self.extractor(im_crops)
-
+            if not self.use_rknn:
+                features = self.extractor(im_crops)
+                assert features.shape[0] == 1
             # case: .rknn
-            # 使用.rknn作extractor 需要增加数据前处理
-            im_crops = self.preprocess.preprocess(im_crops)
-            # features = self.extractor(inputs=im_crops)  # 维度不对 删除第一维
-            features = np.squeeze(np.array(self.extractor.inference(inputs=im_crops)), axis=0)
-            # print("第二个RKNN调用成功!")
+            else:
+                # 使用.rknn作extractor 需要增加数据前处理
+                im_crops = self.preprocess.preprocess(im_crops)
+                # old:
+                # features = self.extractor(inputs=im_crops)  # 维度不对 删除第一维
+                # features = np.squeeze(np.array(self.extractor.inference(inputs=im_crops)), axis=0)
+                # new:
+                # 之前的输入im_crops都是一张图片，修改后im_crops可能有多张图片；
+                # 但是rknn模型只能指定一个固定的batch_size,当前为1，所以只能一张一张推理。追踪时间也和目标数量成正比。
+                features = []
+                for im_crop in im_crops:
+                    if len(features) == 0:
+                        features = self.extractor.inference(inputs=im_crop)[0]
+                    else:
+                        features = np.concatenate((features, self.extractor.inference(inputs=im_crop)[0]), axis=0)
 
         else:
             features = np.array([])

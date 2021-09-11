@@ -1,5 +1,4 @@
 from typing import List, Any
-
 import cv2
 import time
 import random
@@ -56,10 +55,13 @@ class RKNNDetector:
 
     def _predict(self, img_src, _img, gain, conf_thres=0.4, iou_thres=0.45):
         src_h, src_w = img_src.shape[:2]
-        _img = cv2.cvtColor(_img, cv2.COLOR_BGR2RGB)
+        _img = cv2.cvtColor(_img, cv2.COLOR_BGR2RGB).astype('uint8')
+        # EVAL: 测试rknn模型每一层所花的时间
+        # img2 = np.random.randint(0,255,[640,640,3]).astype('uint8')
+        # self._rknn.eval_perf(inputs=img2, is_print=True)
         t0 = time.time()
         pred_onx = self._rknn.inference(inputs=[_img])
-        print("inference time:\t", time.time() - t0)
+        print("\ninference time:\t", time.time() - t0)
         boxes, classes, scores = [], [], []
         for t in range(3):
             input0_data = sigmoid(pred_onx[t][0])
@@ -98,7 +100,8 @@ class RKNNDetector:
             nclasses.append(c[keep])
             nscores.append(s[keep])
         if len(nboxes) < 1:
-            return [], []
+            # return [], []  # 返回[[]]更适合追踪代码
+            return [[]]
         boxes = np.concatenate(nboxes)
         classes = np.concatenate(nclasses)
         scores = np.concatenate(nscores)
@@ -112,9 +115,20 @@ class RKNNDetector:
             y1 = max(0, np.floor(y))
             x2 = min(src_w, np.floor(x + w + 0.5))
             y2 = min(src_h, np.floor(y + h + 0.5))
-            box_list.append(np.array([[x1, y1, x2, y2, score, cl]]))
+            # 更改了输出的形式
+            # List[ndarray(1,6),
+            #         ...           =>    List[ndarray(n,6)]
+            #      ndarray(1,6)]
+            # old:
+            # box_list.append(np.array([[x1, y1, x2, y2, score, cl]]))
+            # new:
+            if len(box_list) == 0:
+                box_list.append(np.array([[x1, y1, x2, y2, score, cl]]))
+            else:
+                box_list[0] = np.concatenate((box_list[0], np.array([[x1, y1, x2, y2, score, cl]])), axis=0)
             if self.draw_box:
                 plot_one_box((int(x1), int(y1), int(x2), int(y2)), img_src, label=self.names[cl], line_thickness = 1)
+        print('Entire Time for detection:\t{}'.format(time.time() - t0))
         return box_list
 
     def predict_resize(self, img_src, conf_thres=0.4, iou_thres=0.45):
@@ -286,7 +300,6 @@ def detect(opt):
     imgsz = check_img_size(imgsz, s=stride)
     names = ['person', 'vehicle']
     detector = RKNNDetector(dt_model, (imgsz, imgsz), MASKS, ANCHORS, CLASSES)
-
     # case: ckpt.t7
     # Load deepsort extractor model
     reid_model = './deep_sort_pytorch/deep_sort/deep/checkpoint/ckpt.rknn'
@@ -306,7 +319,7 @@ def detect(opt):
                         max_dist=cfg.DEEPSORT.MAX_DIST, min_confidence=cfg.DEEPSORT.MIN_CONFIDENCE,
                         nms_max_overlap=cfg.DEEPSORT.NMS_MAX_OVERLAP, max_iou_distance=cfg.DEEPSORT.MAX_IOU_DISTANCE,
                         max_age=cfg.DEEPSORT.MAX_AGE, n_init=cfg.DEEPSORT.N_INIT, nn_budget=cfg.DEEPSORT.NN_BUDGET,
-                        use_cuda=True)
+                        use_rknn=True)
 
     if os.path.exists(out):#判断输出路径是否存在
         pass
@@ -334,93 +347,97 @@ def detect(opt):
 
         # Detection Inference
         '''推理一张图片，这个用rknn替代'''
-        t1 = time_synchronized()
-        pred = detector.predict(img)
-        t2 = time_synchronized()
+        pred = detector.predict(img, conf_thres=0.5)
 
         # Process detections
         '''后处理'''
-        for i, det in enumerate(pred):  # detections per image
-            '''处理每个目标'''
-            p, s, im0 = path, '', im0s
+        det = pred[0]  # Batch_size == 1 所以直接选[0]
+        t1 = time_synchronized()
+        p, s, im0 = path, '', im0s
 
-            s += '%gx%g ' % img.shape[0:2]  # print string
-            save_path = str(Path(out) / Path(p).name)
+        s += '%gx%g ' % img.shape[0:2]  # print string
+        save_path = str(Path(out) / Path(p).name)
 
-            if det is not None and len(det):
-                # Rescale boxes from img_size to im0 size
-                det[:, :4] = scale_coords(
-                    img.shape[0:2], det[:, :4], im0.shape, Is_rknn=True).round()  # changed in this fun
-                # 测试一下
-                plot_one_box(det[0][:4], im0) # Test for edits
+        # 取消了for i, det in enumerate(pred):
+        # track.py里面pred的意思不是每一帧图像里面的各个目标，可以测试一下
+        # 之前 len(det)==1 会影响 追踪代码的逻辑 det应该是一帧里面的所有目标
+        if det is not None and len(det):
+            # Rescale boxes from img_size to im0 size
+            det[:, :4] = scale_coords(
+                img.shape[0:2], det[:, :4], im0.shape, Is_rknn=True).round()  # changed in this fun
 
-                # Print results
-                # 由Torch换成Numpy
-                for c in np.unique(det[:, -1]):
-                    n = (det[:, -1] == c).sum()  # detections per class
-                    s += '%g %ss, ' % (n, names[int(c)])  # add to string
+            # 测试一下
+            # for item in det:
+            #     plot_one_box(item[:4], im0)  # Test for edits
 
-                xywhs = xyxy2xywh(det[:, 0:4])
-                confs = det[:, 4]
-                clss = det[:, 5]
+            # Print results
+            # 由Torch换成Numpy
+            for c in np.unique(det[:, -1]):
+                n = (det[:, -1] == c).sum()  # detections per class
+                s += '%g %ss, ' % (n, names[int(c)])  # add to string
 
-                # pass detections to deepsort
-                '''最关键的地方用deepsort了'''
-                outputs = deepsort.update(xywhs, confs, clss, im0)
+            xywhs = xyxy2xywh(det[:, 0:4])
+            confs = det[:, 4]
+            clss = det[:, 5]
 
-                # draw boxes for visualization
-                '''画框，可用可不用'''
-                if len(outputs) > 0:
-                    for j, (output, conf) in enumerate(zip(outputs, confs)):
+            # pass detections to deepsort
+            '''最关键的地方用deepsort了'''
+            outputs = deepsort.update(xywhs, confs, clss, im0)
 
-                        bboxes = output[0:4]
-                        id = output[4]
-                        cls = output[5]
+            # draw boxes for visualization
+            '''画框，可用可不用'''
+            if len(outputs) > 0:
+                for j, (output, conf) in enumerate(zip(outputs, confs)):
 
-                        c = int(cls)  # integer class
-                        label = f'{id} {names[c]} {conf:.2f}'
-                        color = compute_color_for_id(id)
-                        plot_one_box(bboxes, im0, label=label, color=color, line_thickness=2)
+                    bboxes = output[0:4]
+                    id = output[4]
+                    cls = output[5]
 
-                        if save_txt:
-                            # to MOT format
-                            bbox_left = output[0]
-                            bbox_top = output[1]
-                            bbox_w = output[2] - output[0]
-                            bbox_h = output[3] - output[1]
-                            # Write MOT compliant results to file
-                            with open(txt_path, 'a') as f:
-                                f.write(('%g ' * 10 + '\n') % (frame_idx, id, bbox_left,
-                                                               bbox_top, bbox_w, bbox_h, -1, -1, -1, -1))  # label format
+                    c = int(cls)  # integer class
+                    label = f'{id} {names[c]} {conf:.2f}'
+                    color = compute_color_for_id(id)
+                    plot_one_box(bboxes, im0, label=label, color=color, line_thickness=2)
 
-            else:
-                deepsort.increment_ages()
+                    if save_txt:
+                        # to MOT format
+                        bbox_left = output[0]
+                        bbox_top = output[1]
+                        bbox_w = output[2] - output[0]
+                        bbox_h = output[3] - output[1]
+                        # Write MOT compliant results to file
+                        with open(txt_path, 'a') as f:
+                            f.write(('%g ' * 10 + '\n') % (frame_idx, id, bbox_left,
+                                                           bbox_top, bbox_w, bbox_h, -1, -1, -1, -1))  # label format
 
-            # Print time (inference + NMS)
-            print('%sDone. (%.3fs)' % (s, t2 - t1))
+        else:
+            deepsort.increment_ages()
 
-            # Stream results
-            if show_vid:
-                cv2.imshow(p, im0)
-                if cv2.waitKey(1) == ord('q'):  # q to quit
-                    raise StopIteration
+        # Print time (inference + NMS)
+        t2 = time_synchronized()
+        print('%sDone. (%.3fs)' % (s, t2 - t1))
+        # cv2.imwrite('./inference/detection_rknn/{}.jpg'.format(str(frame_idx)), im0)
+        # Stream results
+        if show_vid:
+            cv2.imshow(p, im0)
+            if cv2.waitKey(1) == ord('q'):  # q to quit
+                raise StopIteration
 
-            # Save results (image with detections)
-            if save_vid:
-                if vid_path != save_path:  # new video
-                    vid_path = save_path
-                    if isinstance(vid_writer, cv2.VideoWriter):
-                        vid_writer.release()  # release previous video writer
-                    if vid_cap:  # video
-                        fps = vid_cap.get(cv2.CAP_PROP_FPS)
-                        w = int(vid_cap.get(cv2.CAP_PROP_FRAME_WIDTH))
-                        h = int(vid_cap.get(cv2.CAP_PROP_FRAME_HEIGHT))
-                    else:  # stream
-                        fps, w, h = 30, im0.shape[1], im0.shape[0]
-                        save_path += '.mp4'
+        # Save results (image with detections)
+        if save_vid:
+            if vid_path != save_path:  # new video
+                vid_path = save_path
+                if isinstance(vid_writer, cv2.VideoWriter):
+                    vid_writer.release()  # release previous video writer
+                if vid_cap:  # video
+                    fps = vid_cap.get(cv2.CAP_PROP_FPS)
+                    w = int(vid_cap.get(cv2.CAP_PROP_FRAME_WIDTH))
+                    h = int(vid_cap.get(cv2.CAP_PROP_FRAME_HEIGHT))
+                else:  # stream
+                    fps, w, h = 30, im0.shape[1], im0.shape[0]
+                    save_path += '.mp4'
 
-                    vid_writer = cv2.VideoWriter(save_path, cv2.VideoWriter_fourcc(*'mp4v'), fps, (w, h))
-                vid_writer.write(im0)
+                vid_writer = cv2.VideoWriter(save_path, cv2.VideoWriter_fourcc(*'mp4v'), fps, (w, h))
+            vid_writer.write(im0)
 
     if save_txt or save_vid:
         print('Results saved to %s' % os.getcwd() + os.sep + out)

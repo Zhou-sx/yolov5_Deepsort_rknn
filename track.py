@@ -127,6 +127,7 @@ def detect(opt):
         pred = non_max_suppression(
             pred, opt.conf_thres, opt.iou_thres, classes=opt.classes, agnostic=opt.agnostic_nms)
         t2 = time_synchronized()
+        # assert len(pred) == 1
 
         # Process detections
         '''后处理'''
@@ -144,6 +145,9 @@ def detect(opt):
                 # Rescale boxes from img_size to im0 size
                 det[:, :4] = scale_coords(
                     img.shape[2:], det[:, :4], im0.shape).round()
+                #
+                # for item in det:
+                #     plot_one_box(item[:4], im0)  # Test for edits
 
                 # Print results
                 for c in det[:, -1].unique():
@@ -157,12 +161,12 @@ def detect(opt):
                 # pass detections to deepsort
                 '''最关键的地方用deepsort了'''
                 outputs = deepsort.update(xywhs.cpu(), confs.cpu(), clss, im0)
-                
+
                 # draw boxes for visualization
                 '''画框，可用可不用'''
                 if len(outputs) > 0:
-                    for j, (output, conf) in enumerate(zip(outputs, confs)): 
-                        
+                    for j, (output, conf) in enumerate(zip(outputs, confs)):
+
                         bboxes = output[0:4]
                         id = output[4]
                         cls = output[5]
@@ -211,7 +215,7 @@ def detect(opt):
 
                     vid_writer = cv2.VideoWriter(save_path, cv2.VideoWriter_fourcc(*'mp4v'), fps, (w, h))
                 vid_writer.write(im0)
-
+        # cv2.imwrite('./inference/detection_pt/{}.jpg'.format(str(frame_idx)), im0)
     if save_txt or save_vid:
         print('Results saved to %s' % os.getcwd() + os.sep + out)
         if platform == 'darwin':  # MacOS
