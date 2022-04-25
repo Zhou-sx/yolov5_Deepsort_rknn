@@ -1,0 +1,5 @@
+build
+.vscode
+make
+data/*
+res/*
