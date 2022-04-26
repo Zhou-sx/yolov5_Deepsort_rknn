@@ -1,3 +1,7 @@
+#include "im2d.h"
+#include "RgaUtils.h"
+#include "rga.h"
+
 #include "main.h"
 #include "decode.h"
 #include "nms.h"
@@ -17,7 +21,6 @@ extern queue<det_res> queueDetOut;        // Det output queue
 
 /*
 	图像预处理 
-	将图片缩放至指定大小，不进行图像拉伸保持同一比例
 	img——原图像      _img——缩放后的图像
 	resize：  		缩放图像
 	get_max_scale： 获取最大缩放比例
@@ -26,14 +29,16 @@ class preprocess
 {
 public:
     preprocess();
-    void set_size(int height, int width);//输入变化至的尺寸 height，width
     int input_height;
     int input_width;
-	float scale;
-	void resize(cv::Mat &img, cv::Mat &_img);
+    int input_channel;
+    // init rga context
+    rga_buffer_t src;
+    rga_buffer_t dst;
+    im_rect src_rect;
+    im_rect dst_rect;
 
-private:
-	float get_max_scale(cv::Mat &img);
+	void resize(cv::Mat &img, cv::Mat &_img);
 };
 
 class rknn_fp{

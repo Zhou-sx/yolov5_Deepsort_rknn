@@ -1,31 +1,34 @@
 #include "detect.h"
 
 preprocess::preprocess(){
-	scale = 1.0;
+	input_height = NET_INPUTHEIGHT;
+	input_width = NET_INPUTWIDTH;
+	input_channel = NET_INPUTCHANNEL;
 }
 
-void preprocess::set_size(int height, int width){
-    input_height = height;
-    input_width = width;
-}
 void preprocess::resize(cv::Mat &img, cv::Mat &_img)
 {
-    scale = get_max_scale(img);
-    // cout << scale << endl;
-    int img_width_new = img.cols * scale;
-    int img_height_new = img.rows * scale;
-    // cout << img_width_new << " " << img_height_new << endl;
-    cv::resize(img, _img, cv::Size(img_width_new, img_height_new), (0, 0), (0, 0), cv::INTER_LINEAR);
-    cv::copyMakeBorder(_img, _img, 0, input_height - img_height_new, 0, input_width - img_width_new, cv::BORDER_CONSTANT, cv::Scalar(114, 114, 114));
-//		imwrite("./border.jpg", _img);
-}
+    memset(&src_rect, 0, sizeof(src_rect));
+    memset(&dst_rect, 0, sizeof(dst_rect));
+    memset(&src, 0, sizeof(src));
+    memset(&dst, 0, sizeof(dst));
+	int img_width = img.cols;
+    int img_height = img.rows;
+    void *resize_buf = malloc(input_height * input_width * input_channel);
 
-// 在不丢失原图比例的同时，尽可能的伸缩；同时为了保证检测效果，只允许缩放，不允许放大。
-float preprocess::get_max_scale(cv::Mat &img)
-{
-    float scale = min((float)input_width / img.cols, (float)input_height/img.rows);
-    if(scale > 1) return 1;
-    else return scale;
+	src = wrapbuffer_virtualaddr((void *)img.data, img_width, img_height, RK_FORMAT_RGB_888);
+    dst = wrapbuffer_virtualaddr((void *)resize_buf, input_width, input_height, RK_FORMAT_RGB_888);
+    int ret = imcheck(src, dst, src_rect, dst_rect);
+
+	IM_STATUS STATUS = imresize(src, dst);
+    if (ret != IM_STATUS_NOERROR)
+    {
+        printf("%d, check error! %s", __LINE__, imStrError((IM_STATUS)ret));
+        exit(-1);
+    }
+	_img = cv::Mat(cv::Size(input_width, input_height), CV_8UC3, resize_buf);
+
+	// cv::imwrite("resize_input.jpg", _img);
 }
 
 
@@ -157,9 +160,6 @@ rknn_fp::rknn_fp(const char *model_path, int cpuid, rknn_core_mask core_mask)
 			exit(-1);
 		}
 	}
-
-    // 预处理类 resize至指定尺寸
-	post_do.set_size(NET_INPUTHEIGHT, NET_INPUTWIDTH);
 }
 
 rknn_fp::~rknn_fp(){
@@ -175,6 +175,7 @@ int rknn_fp::detect(cv::Mat src){
     // inputs[0].buf = img.data;
 	int width  = _input_attrs[0].dims[2];
 	memcpy(_input_mems[0]->virt_addr, img.data, width*_input_attrs[0].dims[1]*_input_attrs[0].dims[3]);
+	// if(img.data) free(img.data);
 	unsigned char * buff = (unsigned char *)_input_mems[0]->virt_addr;
 
     // rknn inference

@@ -5,7 +5,8 @@ set(
     include_libs  
     "${PROJECT_SOURCE_DIR}/include"
     /home/linaro/workspace/opencv/include/opencv4
-    ${PROJECT_SOURCE_DIR}/librknn_api/include
+    ${PROJECT_SOURCE_DIR}/3rdparty/librknn_api/include
+    ${PROJECT_SOURCE_DIR}/3rdparty/rga/include
 )
 
 include_directories(${include_libs})
@@ -22,7 +23,8 @@ set(
     ${opencv_lib}/libopencv_imgproc.so
     ${opencv_lib}/libopencv_videoio.so
     ${opencv_lib}/libopencv_video.so
-    ${PROJECT_SOURCE_DIR}/librknn_api/aarch64/librknnrt.so
+    ${PROJECT_SOURCE_DIR}/3rdparty/librknn_api/aarch64/librknnrt.so
+    ${PROJECT_SOURCE_DIR}/3rdparty/rga/lib/librga.so
 )
 
 # 开启调试选项

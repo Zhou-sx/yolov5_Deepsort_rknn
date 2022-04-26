@@ -5,7 +5,7 @@
 #include "detect.h"
 
 string PROJECT_DIR = "/home/linaro/workspace/yolov5_c";
-string MODEL_PATH = PROJECT_DIR + "/model/yolov5_nofocus.rknn";
+string MODEL_PATH = PROJECT_DIR + "/model/yolov5.rknn";
 char* DEVICE_ID = (char*)"a056846056897056";
 string VIDEO_PATH = PROJECT_DIR + "/data/DJI_0001_S_cut.mp4";
 string VIDEO_SAVEPATH = PROJECT_DIR + "/data/results.mp4";

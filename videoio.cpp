@@ -55,11 +55,12 @@ void videoRead(const char *video_name, int cpuid)
 	预处理的缩放比例
 	在不丢失原图比例的同时，尽可能的伸缩；同时为了保证检测效果，只允许缩放，不允许放大。
 */
-float get_max_scale(int input_width, int input_height, int net_width, int net_height)
+vector<float> get_max_scale(int input_width, int input_height, int net_width, int net_height)
 {
-    float scale = min((float)net_width / input_width, (float)net_height /input_height);
-    if(scale > 1) return 1;
-    else return scale;
+    vector<float> scale = {  (float)net_width / input_width,
+							 (float)net_height /input_height
+					 	  };
+	return scale;
 }
 
 // 写视频
@@ -68,7 +69,7 @@ void videoWrite(const char* save_path,int cpuid)
 	cpu_set_t mask;
 	CPU_ZERO(&mask);
 	CPU_SET(cpuid, &mask);
-	float scale = get_max_scale(IMG_WIDTH, IMG_HEIGHT, NET_INPUTWIDTH, NET_INPUTHEIGHT); // 预处理缩放比例
+	vector<float> scale = get_max_scale(IMG_WIDTH, IMG_HEIGHT, NET_INPUTWIDTH, NET_INPUTHEIGHT); // 预处理缩放比例
 
 	if (pthread_setaffinity_np(pthread_self(), sizeof(mask), &mask) < 0)
 		cerr << "set thread affinity failed" << endl;
@@ -120,7 +121,7 @@ cv::Scalar colorArray[2]={
 	cv::Scalar(139,0,0,255),
 	cv::Scalar(139,0,139,255),
 };
-int draw_image(cv::Mat img,float scale,detection* dets,int total,float thresh)
+int draw_image(cv::Mat img,vector<float> scale,detection* dets,int total,float thresh)
 {
 	//::cvtColor(img, img, cv::COLOR_RGB2BGR);
 	for(int i=0;i<total;i++){
@@ -150,10 +151,10 @@ int draw_image(cv::Mat img,float scale,detection* dets,int total,float thresh)
 			cv::Rect_<float> b=dets[i].bbox;
 			//计算坐标 先根据缩放后的图计算绝对坐标 然后除以scale缩放到原来的图
 			//又因为原点重合 因此缩放后的结果就是原结果
-			int x1 = b.x * NET_INPUTWIDTH / scale;
-			int x2= x1 + b.width * NET_INPUTWIDTH / scale + 0.5;
-			int y1= b.y * NET_INPUTWIDTH / scale;
-			int y2= y1 + b.height * NET_INPUTHEIGHT / scale + 0.5;
+			int x1 = b.x * NET_INPUTWIDTH / scale[0];
+			int x2= x1 + b.width * NET_INPUTWIDTH / scale[0] + 0.5;
+			int y1= b.y * NET_INPUTHEIGHT / scale[1];
+			int y2= y1 + b.height * NET_INPUTHEIGHT / scale[1] + 0.5;
 
             if(x1  < 0) x1  = 0;
             if(x2> img.cols-1) x2 = img.cols-1;

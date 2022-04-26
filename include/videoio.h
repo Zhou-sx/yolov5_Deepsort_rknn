@@ -16,6 +16,6 @@ extern int idxInputImage;  // image index of input video
 extern video_property video_probs; // 视频属性类
 
 void videoRead(const char* video_name, int cpuid);
-float get_max_scale(int input_width, int input_height, int net_width, int net_height);
+vector<float> get_max_scale(int input_width, int input_height, int net_width, int net_height);
 void videoWrite(const char* save_path,int cpuid) ;
-int draw_image(cv::Mat img,float scale,detection* dets,int total,float thresh);
+int draw_image(cv::Mat img,vector<float> scale,detection* dets,int total,float thresh);
