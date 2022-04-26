@@ -10,4 +10,4 @@ cv::Rect_<float> get_yolo_box(float *x, float *biases, int n, int index, int i, 
 void get_network_boxes(float* predictions, int netw, int neth, int GRID, int* masks, 
                        float* anchors, int &box_off, detection* dets);
 
-int outputs_transform(rknn_output rknn_outputs[], int net_width, int net_height, detection* dets);
+int outputs_transform(float* output_buff[], int net_width, int net_height, detection* dets);

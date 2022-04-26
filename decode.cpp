@@ -67,19 +67,16 @@ void get_network_boxes(float* predictions, int netw, int neth, int GRID, int* ma
 	Yolov5 输出结果解码3
 	对网络中3种尺寸的预测结果分别进行解码
 ----------------------------------------------------------*/
-int outputs_transform(rknn_output rknn_outputs[], int net_width, int net_height, detection* dets) {
-	float* output_0 = (float*)rknn_outputs[0].buf;
-	float* output_1 = (float*)rknn_outputs[1].buf;
-	float* output_2 = (float*)rknn_outputs[2].buf;
+int outputs_transform(float* output_buff[], int net_width, int net_height, detection* dets) {
 	int masks_0[3] = { 0, 1, 2 };
 	int masks_1[3] = { 3, 4, 5 };
 	int masks_2[3] = { 6, 7, 8 };
 	float anchors[18] = { 10,13,16,30,33,23,30,61,62,45,59,119,116,90,156,198,373,326 };
 	//输出xywh均在0-1范围内
 	int nboxes_valid = 0;
-	get_network_boxes(output_0, net_width, net_height, GRID0, masks_0, anchors, nboxes_valid, dets);
-	get_network_boxes(output_1, net_width, net_height, GRID1, masks_1, anchors, nboxes_valid, dets);
-	get_network_boxes(output_2, net_width, net_height, GRID2, masks_2, anchors, nboxes_valid, dets);
+	get_network_boxes(output_buff[0], net_width, net_height, GRID0, masks_0, anchors, nboxes_valid, dets);
+	get_network_boxes(output_buff[1], net_width, net_height, GRID1, masks_1, anchors, nboxes_valid, dets);
+	get_network_boxes(output_buff[2], net_width, net_height, GRID2, masks_2, anchors, nboxes_valid, dets);
 	return nboxes_valid;
 }
 

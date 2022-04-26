@@ -18,11 +18,9 @@ using namespace std;
 using namespace cv;
 
 
-#define SOCKETNUM 2 // socket参数
-#define BATCHSIZE 50 // NPU伪批处理大小 NPU其实不存在批处理 每BATCHSIZE换块板子进行推理
 #define BYTE unsigned char
-#define IMG_WIDTH 640
-#define IMG_HEIGHT 640
+#define IMG_WIDTH 1920
+#define IMG_HEIGHT 1080
 
 
 // 网络的参数
@@ -78,6 +76,7 @@ struct detection{
 struct det_res{
 	int idx;
 	int nboxes_left;
+    cv::Mat img;
 	detection res[nboxes_total];//缓冲区
 };
 
