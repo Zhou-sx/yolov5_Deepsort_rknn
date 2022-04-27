@@ -1,7 +1,25 @@
 #include "videoio.h"
 
+
+preprocess::preprocess(){
+	input_height = NET_INPUTHEIGHT;
+	input_width = NET_INPUTWIDTH;
+	scale = get_max_scale(IMG_WIDTH, IMG_HEIGHT, NET_INPUTWIDTH, NET_INPUTHEIGHT);
+}
+void preprocess::resize(cv::Mat &img, cv::Mat &_img)
+{
+    int img_width_new = img.cols * scale;
+    int img_height_new = img.rows * scale;
+    // cout << img_width_new << " " << img_height_new << endl;
+    cv::resize(img, _img, cv::Size(img_width_new, img_height_new), (0, 0), (0, 0), cv::INTER_LINEAR);
+    cv::copyMakeBorder(_img, _img, 0, input_height - img_height_new, 0, input_width - img_width_new, cv::BORDER_CONSTANT, cv::Scalar(114, 114, 114));
+	// imwrite("./border.jpg", _img);
+	return;
+}
+
+
 /*---------------------------------------------------------
-	传视频客户端
+	读视频
 	video_name: 视频路径
 	cpuid:		绑定到某核
 ----------------------------------------------------------*/
@@ -30,20 +48,23 @@ void videoRead(const char *video_name, int cpuid)
     video_probs.Video_height = video.get(CV_CAP_PROP_FRAME_HEIGHT);
     video_probs.Video_fourcc = video.get(CV_CAP_PROP_FOURCC);
 	
+	preprocess post_do;
+
 	bReading = true;//读写状态标记
 	while (1) 
 	{  
-		cv::Mat img, img_gray;
+		cv::Mat img_src, img_resize;
 		// 如果读不到图片 或者 bReading 不在读取状态则跳出
-		if (!bReading || !video.read(img) || idxInputImage >= video_probs.Frame_cnt) {
+		if (!bReading || !video.read(img_src) || idxInputImage >= video_probs.Frame_cnt) {
 			// cout << "read video stream failed! Maybe to the end!" << endl;
 			// video.set(CV_CAP_PROP_POS_FRAMES, 0);
 			// continue;
 			video.release();
 			break;
 		}
+		post_do.resize(img_src, img_resize);
 		mtxQueueInput.lock();
-		queueInput.push(make_pair(idxInputImage, img));
+		queueInput.push(input_image(idxInputImage, img_src, img_resize));
 		mtxQueueInput.unlock();
 		idxInputImage++;
 	}
@@ -73,7 +94,7 @@ void videoWrite(const char* save_path,int cpuid)
 	if (pthread_setaffinity_np(pthread_self(), sizeof(mask), &mask) < 0)
 		cerr << "set thread affinity failed" << endl;
 
-	printf("Bind VideoCapture process to CPU %d\n", cpuid); 
+	printf("Bind videoWrite process to CPU %d\n", cpuid); 
 
 	cv::VideoWriter vid_writer;
     while(1)
@@ -89,7 +110,6 @@ void videoWrite(const char* save_path,int cpuid)
 
 	while (1) 
 	{  
-		usleep(10000);
 		cv::Mat img;
 
 		// 如果queueDetOut存在元素 就尝试写
@@ -99,9 +119,8 @@ void videoWrite(const char* save_path,int cpuid)
 			queueDetOut.pop();
 			mtxqueueDetOut.unlock();
 			cv::Mat img = detect_res.img;
-			draw_image(img, scale, detect_res.res, detect_res.nboxes_left, 0.3);
-			vid_writer.write(img); // Save-video
-
+			// draw_image(img, scale, detect_res.res, detect_res.nboxes_left, 0.3);
+			// vid_writer.write(img); // Save-video
 		}
 		// 最后一帧检测结束 bWriting置为false 此时如果queueOutput仍存在元素 继续写
 		else if(!bDetecting){

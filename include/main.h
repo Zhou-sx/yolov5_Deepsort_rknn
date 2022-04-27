@@ -54,6 +54,20 @@ struct video_property{
     double Video_fourcc;
 };
 
+struct input_image{
+    input_image(){
+
+    }
+    input_image(int num, cv::Mat img1, cv::Mat img2){
+        index = num;
+        img_src = img1;
+        img_resize = img2;
+    }
+    int index;
+    cv::Mat img_src;
+    cv::Mat img_resize;
+};
+
 /*
     预测结果结构体:
     bbox:       存储box的位置信息 (x,y,w,h) 左上角坐标和宽、高

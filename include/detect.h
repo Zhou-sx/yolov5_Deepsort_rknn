@@ -11,30 +11,10 @@ extern video_property video_probs; // 视频属性类
 // 多线程控制相关
 extern int idxOutputImage;                // next frame index to be output 保证queueDetOut_server序号正确
 extern mutex mtxQueueInput;               
-extern queue<pair<int, Mat>> queueInput;  // input queue
+extern queue<input_image> queueInput;  // input queue
 extern mutex mtxqueueDetOut;
 extern queue<det_res> queueDetOut;        // Det output queue
 
-/*
-	图像预处理 
-	将图片缩放至指定大小，不进行图像拉伸保持同一比例
-	img——原图像      _img——缩放后的图像
-	resize：  		缩放图像
-	get_max_scale： 获取最大缩放比例
-*/
-class preprocess
-{
-public:
-    preprocess();
-    void set_size(int height, int width);//输入变化至的尺寸 height，width
-    int input_height;
-    int input_width;
-	float scale;
-	void resize(cv::Mat &img, cv::Mat &_img);
-
-private:
-	float get_max_scale(cv::Mat &img);
-};
 
 class rknn_fp{
 public:
@@ -47,8 +27,6 @@ public:
     rknn_tensor_mem* _input_mems[1];
     rknn_tensor_mem* _output_mems[3];
     float* _output_buff[3];
-    // 预处理类
-    preprocess post_do;
     /*
         NPU初始化
         model_path： 模型路径

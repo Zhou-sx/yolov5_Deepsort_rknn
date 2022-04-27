@@ -7,7 +7,7 @@
 string PROJECT_DIR = "/home/linaro/workspace/yolov5_c";
 string MODEL_PATH = PROJECT_DIR + "/model/yolov5_nofocus.rknn";
 char* DEVICE_ID = (char*)"a056846056897056";
-string VIDEO_PATH = PROJECT_DIR + "/data/DJI_0001_S_cut.mp4";
+string VIDEO_PATH = PROJECT_DIR + "/data/DJI_0001_S_cut640.mp4";
 string VIDEO_SAVEPATH = PROJECT_DIR + "/data/results.mp4";
 
 // 各任务进行状态序号
@@ -23,7 +23,7 @@ int NPU_ID[3] = {1, 2, 4};
 
 // 多线程控制相关
 mutex mtxQueueInput;        		  // mutex of input queue client
-queue<pair<int, Mat>> queueInput;  // input queue client
+queue<input_image> queueInput;  // input queue client
 mutex mtxqueueDetOut;
 queue<det_res> queueDetOut; // output queue
 mutex mtxQueueShow;                // mutex of display queue
@@ -45,15 +45,14 @@ int main() {
     // cv::Mat img_src = cv::imread(IMAGE_PATH);
     // detect_process(MODEL_PATH.c_str(), 0, img_src);
 
-    videoRead(VIDEO_PATH.c_str(), 7);
     const int thread_num = 5;
     array<thread, thread_num> threads;
-    threads = {
-                  thread(videoRead, VIDEO_PATH.c_str(), 6),
-                  thread(videoWrite, VIDEO_SAVEPATH.c_str(), 7),
+    threads = {   
                   thread(detect_process, MODEL_PATH.c_str(), 0, RKNN_NPU_CORE_0),
                   thread(detect_process, MODEL_PATH.c_str(), 1, RKNN_NPU_CORE_1),
-                  thread(detect_process, MODEL_PATH.c_str(), 2, RKNN_NPU_CORE_2)
+                  thread(detect_process, MODEL_PATH.c_str(), 2, RKNN_NPU_CORE_2),
+                  thread(videoRead, VIDEO_PATH.c_str(), 6),
+                  thread(videoWrite, VIDEO_SAVEPATH.c_str(), 7),
               };
     for (int i = 0; i < thread_num; i++) threads[i].join();
     printf("Video detection mean cost time(ms): %f\n", (end_time-start_time) / video_probs.Frame_cnt);
