@@ -62,7 +62,7 @@ void videoRead(const char *video_name, int cpuid)
 			video.release();
 			break;
 		}
-		post_do.resize(img_src, img_resize);
+		// post_do.resize(img_src, img_resize);
 		mtxQueueInput.lock();
 		queueInput.push(input_image(idxInputImage, img_src, img_resize));
 		mtxQueueInput.unlock();
@@ -184,6 +184,6 @@ int draw_image(cv::Mat img,float scale,detection* dets,int total,float thresh)
             putText(img, labelstr, cv::Point(x1, y1 - 12), 1, 2, cv::Scalar(0, 255, 0, 255));
             }
 		}
-		imwrite("./display.jpg", img);
+		// imwrite("./display.jpg", img);
 	return 0;
 }
