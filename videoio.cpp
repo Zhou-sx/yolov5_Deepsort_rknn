@@ -1,7 +1,39 @@
 #include "videoio.h"
 
+
+preprocess::preprocess(){
+	input_height = NET_INPUTHEIGHT;
+	input_width = NET_INPUTWIDTH;
+	input_channel = NET_INPUTCHANNEL;
+}
+
+void preprocess::resize(cv::Mat &img, cv::Mat &_img)
+{
+    memset(&src_rect, 0, sizeof(src_rect));
+    memset(&dst_rect, 0, sizeof(dst_rect));
+    memset(&src, 0, sizeof(src));
+    memset(&dst, 0, sizeof(dst));
+	int img_width = img.cols;
+    int img_height = img.rows;
+    void *resize_buf = malloc(input_height * input_width * input_channel);
+
+	src = wrapbuffer_virtualaddr((void *)img.data, img_width, img_height, RK_FORMAT_RGB_888);
+    dst = wrapbuffer_virtualaddr((void *)resize_buf, input_width, input_height, RK_FORMAT_RGB_888);
+    int ret = imcheck(src, dst, src_rect, dst_rect);
+
+	IM_STATUS STATUS = imresize(src, dst);
+    if (ret != IM_STATUS_NOERROR)
+    {
+        printf("%d, check error! %s", __LINE__, imStrError((IM_STATUS)ret));
+        exit(-1);
+    }
+	_img = cv::Mat(cv::Size(input_width, input_height), CV_8UC3, resize_buf);
+
+	// cv::imwrite("resize_input.jpg", _img);
+}
+
 /*---------------------------------------------------------
-	传视频客户端
+	读视频
 	video_name: 视频路径
 	cpuid:		绑定到某核
 ----------------------------------------------------------*/
@@ -29,21 +61,33 @@ void videoRead(const char *video_name, int cpuid)
     video_probs.Video_width = video.get(CV_CAP_PROP_FRAME_WIDTH);
     video_probs.Video_height = video.get(CV_CAP_PROP_FRAME_HEIGHT);
     video_probs.Video_fourcc = video.get(CV_CAP_PROP_FOURCC);
-	
+
+	preprocess post_do;
 	bReading = true;//读写状态标记
 	while (1) 
 	{  
-		cv::Mat img, img_gray;
+		cv::Mat img_src;
 		// 如果读不到图片 或者 bReading 不在读取状态则跳出
-		if (!bReading || !video.read(img) || idxInputImage >= video_probs.Frame_cnt) {
+		if (!bReading || !video.read(img_src) || idxInputImage >= video_probs.Frame_cnt) {
 			// cout << "read video stream failed! Maybe to the end!" << endl;
 			// video.set(CV_CAP_PROP_POS_FRAMES, 0);
 			// continue;
 			video.release();
 			break;
 		}
+		cv::Mat img_pad;
+		if (add_head){
+			// adaptive head
+			img_pad = cv::Mat(IMG_PAD, IMG_PAD, CV_8UC3);
+			memcpy(img_pad.data, img_src.data, IMG_WIDTH*IMG_HEIGHT*IMG_CHANNEL);
+		}
+		else{
+			// opencv resize
+			post_do.resize(img_src, img_pad);
+		}
+
 		mtxQueueInput.lock();
-		queueInput.push(make_pair(idxInputImage, img));
+		queueInput.push(input_image(idxInputImage, img_src, img_pad));
 		mtxQueueInput.unlock();
 		idxInputImage++;
 	}
@@ -69,12 +113,11 @@ void videoWrite(const char* save_path,int cpuid)
 	cpu_set_t mask;
 	CPU_ZERO(&mask);
 	CPU_SET(cpuid, &mask);
-	vector<float> scale = get_max_scale(IMG_WIDTH, IMG_HEIGHT, NET_INPUTWIDTH, NET_INPUTHEIGHT); // 预处理缩放比例
 
 	if (pthread_setaffinity_np(pthread_self(), sizeof(mask), &mask) < 0)
 		cerr << "set thread affinity failed" << endl;
 
-	printf("Bind VideoCapture process to CPU %d\n", cpuid); 
+	printf("Bind videoWrite process to CPU %d\n", cpuid); 
 
 	cv::VideoWriter vid_writer;
     while(1)
@@ -90,19 +133,14 @@ void videoWrite(const char* save_path,int cpuid)
 
 	while (1) 
 	{  
-		usleep(10000);
-		cv::Mat img;
-
 		// 如果queueDetOut存在元素 就尝试写
 		if (queueDetOut.size() > 0) {
 			mtxqueueDetOut.lock();
-			det_res detect_res = queueDetOut.front();
+			imageout_idx res_pair = queueDetOut.front();
 			queueDetOut.pop();
 			mtxqueueDetOut.unlock();
-			cv::Mat img = detect_res.img;
-			draw_image(img, scale, detect_res.res, detect_res.nboxes_left, 0.3);
-			vid_writer.write(img); // Save-video
-
+			draw_image(res_pair.img, res_pair.dets);
+			vid_writer.write(res_pair.img); // Save-video
 		}
 		// 最后一帧检测结束 bWriting置为false 此时如果queueOutput仍存在元素 继续写
 		else if(!bDetecting){
@@ -121,51 +159,25 @@ cv::Scalar colorArray[2]={
 	cv::Scalar(139,0,0,255),
 	cv::Scalar(139,0,139,255),
 };
-int draw_image(cv::Mat img,vector<float> scale,detection* dets,int total,float thresh)
+int draw_image(cv::Mat &img,detect_result_group_t detect_result_group)
 {
-	//::cvtColor(img, img, cv::COLOR_RGB2BGR);
-	for(int i=0;i<total;i++){
-		char labelstr[4096]={0};
-		int class_=-1;
-		int topclass=-1;
-		float topclass_score=0;
-		if(dets[i].objectness==0) continue;
-		for(int j=0;j<nclasses;j++){
-			if(dets[i].prob[j]>thresh){
-				if(topclass_score<dets[i].prob[j]){
-					topclass_score=dets[i].prob[j];
-					topclass=j;
-				}
-				if(class_<0){
-					strcat(labelstr,labels[j].data());
-					class_=j;
-				}
-				else{
-					strcat(labelstr,",");
-					strcat(labelstr,labels[j].data());
-				}
-			}
-		}
-		//如果class>0说明框中有物体,需画框
-		if(class_>=0){
-			cv::Rect_<float> b=dets[i].bbox;
-			//计算坐标 先根据缩放后的图计算绝对坐标 然后除以scale缩放到原来的图
-			//又因为原点重合 因此缩放后的结果就是原结果
-			int x1 = b.x * NET_INPUTWIDTH / scale[0];
-			int x2= x1 + b.width * NET_INPUTWIDTH / scale[0] + 0.5;
-			int y1= b.y * NET_INPUTHEIGHT / scale[1];
-			int y2= y1 + b.height * NET_INPUTHEIGHT / scale[1] + 0.5;
-
-            if(x1  < 0) x1  = 0;
-            if(x2> img.cols-1) x2 = img.cols-1;
-            if(y1 < 0) y1 = 0;
-            if(y2 > img.rows-1) y2 = img.rows-1;
-			//std::cout << labels[topclass] << "\t@ (" << x1 << ", " << y1 << ") (" << x2 << ", " << y2 << ")" << "\n";
-
-            rectangle(img, cv::Point(x1, y1), cv::Point(x2, y2), colorArray[class_%10], 3);
-            putText(img, labelstr, cv::Point(x1, y1 - 12), 1, 2, cv::Scalar(0, 255, 0, 255));
-            }
-		}
-		imwrite("./display.jpg", img);
+	char text[256];
+    for (int i = 0; i < detect_result_group.count; i++)
+    {
+        detect_result_t *det_result = &(detect_result_group.results[i]);
+        sprintf(text, "%s %.1f%%", det_result->name, det_result->prop * 100);
+        // printf("%s @ (%d %d %d %d) %f\n",
+        //        det_result->name,
+        //        det_result->box.left, det_result->box.top, det_result->box.right, det_result->box.bottom,
+        //        det_result->prop);
+        int x1 = det_result->box.left;
+        int y1 = det_result->box.top;
+        int x2 = det_result->box.right;
+        int y2 = det_result->box.bottom;
+		int class_id = det_result->class_index;
+        rectangle(img, cv::Point(x1, y1), cv::Point(x2, y2), colorArray[class_id%10], 3);
+        putText(img, text, cv::Point(x1, y1 - 12), 1, 2, cv::Scalar(0, 255, 0, 255));
+    }
+	imwrite("./display.jpg", img);
 	return 0;
 }

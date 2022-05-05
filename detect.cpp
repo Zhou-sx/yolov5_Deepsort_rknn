@@ -1,35 +1,5 @@
 #include "detect.h"
 
-preprocess::preprocess(){
-	input_height = NET_INPUTHEIGHT;
-	input_width = NET_INPUTWIDTH;
-	input_channel = NET_INPUTCHANNEL;
-}
-
-void preprocess::resize(cv::Mat &img, cv::Mat &_img)
-{
-    memset(&src_rect, 0, sizeof(src_rect));
-    memset(&dst_rect, 0, sizeof(dst_rect));
-    memset(&src, 0, sizeof(src));
-    memset(&dst, 0, sizeof(dst));
-	int img_width = img.cols;
-    int img_height = img.rows;
-    void *resize_buf = malloc(input_height * input_width * input_channel);
-
-	src = wrapbuffer_virtualaddr((void *)img.data, img_width, img_height, RK_FORMAT_RGB_888);
-    dst = wrapbuffer_virtualaddr((void *)resize_buf, input_width, input_height, RK_FORMAT_RGB_888);
-    int ret = imcheck(src, dst, src_rect, dst_rect);
-
-	IM_STATUS STATUS = imresize(src, dst);
-    if (ret != IM_STATUS_NOERROR)
-    {
-        printf("%d, check error! %s", __LINE__, imStrError((IM_STATUS)ret));
-        exit(-1);
-    }
-	_img = cv::Mat(cv::Size(input_width, input_height), CV_8UC3, resize_buf);
-
-	// cv::imwrite("resize_input.jpg", _img);
-}
 
 
 /*--------------------------------------------------------
@@ -79,7 +49,7 @@ rknn_fp::rknn_fp(const char *model_path, int cpuid, rknn_core_mask core_mask)
 		exit(-1);
 	}
 	
-    // ret = rknn_init(&ctx, model, model_len, RKNN_FLAG_COLLECT_PERF_MASK, NULL);
+    // ret = rknn_init(&ctx, model, m odel_len, RKNN_FLAG_COLLECT_PERF_MASK, NULL);
 	ret = rknn_init(&ctx, model, model_len, 0, NULL);
 	if(ret < 0)
 	{
@@ -166,12 +136,10 @@ rknn_fp::~rknn_fp(){
     rknn_destroy(ctx);
 }
 
-int rknn_fp::detect(cv::Mat src){
+int rknn_fp::detect(cv::Mat img){
 	// Rknn调用函数 返回推理时间
     int ret;
 
-    cv::Mat img;
-    post_do.resize(src, img);
     // inputs[0].buf = img.data;
 	int width  = _input_attrs[0].dims[2];
 	memcpy(_input_mems[0]->virt_addr, img.data, width*_input_attrs[0].dims[1]*_input_attrs[0].dims[3]);
@@ -228,10 +196,35 @@ int detect_process(const char *model_path, int cpuid, rknn_core_mask core_mask){
 	int cost_time = 0; // rknn接口查询返回
 	float npu_performance = 0.0;
 
+	// Letter box resize
+	float img_wh_ratio = (float)IMG_WIDTH / (float)IMG_HEIGHT;
+	float input_wh_ratio = (float)NET_INPUTWIDTH / (float)NET_INPUTHEIGHT;
+	float resize_scale=0;
+	int resize_width;
+	int resize_height;
+	int h_pad;
+	int w_pad;
+	if (img_wh_ratio >= input_wh_ratio){
+		//pad height dim
+		resize_scale = (float)NET_INPUTWIDTH / (float)IMG_WIDTH;
+		resize_width = NET_INPUTWIDTH;
+		resize_height = (int)((float)IMG_HEIGHT * resize_scale);
+		w_pad = 0;
+		h_pad = (NET_INPUTHEIGHT - resize_height)/ 2;
+	}
+	else{
+		//pad width dim
+		resize_scale = (float)NET_INPUTHEIGHT / (float)IMG_HEIGHT;
+		resize_width = (int)((float)IMG_WIDTH * resize_scale);
+		resize_height = NET_INPUTHEIGHT;
+		w_pad = (NET_INPUTWIDTH - resize_width) / 2;
+		h_pad = 0;
+	}
+
 	while (1)
 	{
 		//Load image
-		pair<int, cv::Mat> pairIndexImage;
+		input_image input;
 		mtxQueueInput.lock();
 		//queueInput不为空则进入NPU_process
 		if (queueInput.empty()) {
@@ -249,41 +242,50 @@ int detect_process(const char *model_path, int cpuid, rknn_core_mask core_mask){
 		else{
 			// Get an image from input queue
 			// cout << "已缓存的图片数: " << queueInput.size() << endl;
-			pairIndexImage = queueInput.front();
+			input = queueInput.front();
 			queueInput.pop();
 			mtxQueueInput.unlock();
 		}
 
-		if(pairIndexImage.first == 0){
+		if(input.index == 0){
 			start_time = what_time_is_it_now();
 		} 
-		cost_time = detect_fp.detect(pairIndexImage.second);
+		cost_time = detect_fp.detect(input.img_pad);
 		if(cost_time == -1){
 			printf("NPU inference Error");
 		}
-
-		detection* dets=(detection*) calloc(nboxes_total,sizeof(detection));
-		int nboxes_valid = outputs_transform(detect_fp._output_buff, NET_INPUTHEIGHT, NET_INPUTHEIGHT, dets);
-		detection* nms_res=(detection*) calloc(nboxes_total,sizeof(detection));
-		int nboxes_left = nms_sort(dets, nms_res, nboxes_valid, nclasses); 
-		det_res detect_res;
-		detect_res.idx = pairIndexImage.first;
-		detect_res.nboxes_left = nboxes_left;
-		detect_res.img = pairIndexImage.second;
-		memcpy(detect_res.res, nms_res, sizeof(detection)*nboxes_left); //将nms后的结果复制到nms_res结构体中
-
+		
+		detect_result_group_t detect_result_group;
+		std::vector<float> out_scales;
+		std::vector<int32_t> out_zps;
+		for (int i = 0; i < detect_fp._n_output; ++i)
+		{
+			out_scales.push_back(detect_fp._output_attrs[i].scale);
+			out_zps.push_back(detect_fp._output_attrs[i].zp);
+		}
+		// if valid nbox is few, cost time can be ignored.
+		// 补边左上角对齐 因此 w_pad = h_pad = 0
+		// double start_time = what_time_is_it_now();
+		post_process_fp((float *)detect_fp._output_buff[0], (float *)detect_fp._output_buff[1], (float *)detect_fp._output_buff[2],
+		 				NET_INPUTHEIGHT, NET_INPUTWIDTH, 0, 0, resize_scale, BOX_THRESH, NMS_THRESH, &detect_result_group);
+		detect_result_group.id = input.index;
+		// double end_time = what_time_is_it_now();
+		// cost_time = end_time - start_time;
 		npu_performance = cal_NPU_performance(history_time, sum_time, cost_time / 1.0e3);
 
-		while(detect_res.idx != idxOutputImage){
+		while(detect_result_group.id != idxOutputImage){
 			usleep(1000);
 		}
+		imageout_idx res_pair;
+		res_pair.img = input.img_src;
+		res_pair.dets = detect_result_group;
 		mtxqueueDetOut.lock();
-		queueDetOut.push(detect_res);
-		printf("%f NPU(%d) performance : %f (%d)\n", what_time_is_it_now()/1000, cpuid, npu_performance, detect_res.idx);
-		// draw_image(pairIndexImage.second, detect_fp.post_do.scale, nms_res, nboxes_left, 0.3);
+		queueDetOut.push(res_pair);
+		printf("%f NPU(%d) performance : %f (%d)\n", what_time_is_it_now()/1000, cpuid, npu_performance, detect_result_group.id);
+		// draw_image(input.img_src, detect_fp.post_do.scale, nms_res, nboxes_left, 0.3);
 		idxOutputImage = idxOutputImage + 1;
 		mtxqueueDetOut.unlock();
-		if(pairIndexImage.first == video_probs.Frame_cnt-1){
+		if(input.index == video_probs.Frame_cnt-1){
 			end_time = what_time_is_it_now();
 			break; // 不加也可 queueInput.empty() + breading可以跳出
 		}
@@ -291,60 +293,3 @@ int detect_process(const char *model_path, int cpuid, rknn_core_mask core_mask){
 	bDetecting = false;
     return 0;
 }
-
-/*---------------------------------------------------------
-	绘制预测框
-----------------------------------------------------------*/
-// string labels[2]={"person", "vehicle"};
-// cv::Scalar colorArray[2]={
-// 	cv::Scalar(139,0,0,255),
-// 	cv::Scalar(139,0,139,255),
-// };
-// int draw_image(cv::Mat img,float scale,detection* dets,int total,float thresh)
-// {
-// 	//::cvtColor(img, img, cv::COLOR_RGB2BGR);
-// 	for(int i=0;i<total;i++){
-// 		char labelstr[4096]={0};
-// 		int class_=-1;
-// 		int topclass=-1;
-// 		float topclass_score=0;
-// 		if(dets[i].objectness==0) continue;
-// 		for(int j=0;j<nclasses;j++){
-// 			if(dets[i].prob[j]>thresh){
-// 				if(topclass_score<dets[i].prob[j]){
-// 					topclass_score=dets[i].prob[j];
-// 					topclass=j;
-// 				}
-// 				if(class_<0){
-// 					strcat(labelstr,labels[j].data());
-// 					class_=j;
-// 				}
-// 				else{
-// 					strcat(labelstr,",");
-// 					strcat(labelstr,labels[j].data());
-// 				}
-// 			}
-// 		}
-// 		//如果class>0说明框中有物体,需画框
-// 		if(class_>=0){
-// 			cv::Rect_<float> b=dets[i].bbox;
-// 			//计算坐标 先根据缩放后的图计算绝对坐标 然后除以scale缩放到原来的图
-// 			//又因为原点重合 因此缩放后的结果就是原结果
-// 			int x1 = b.x * NET_INPUTWIDTH / scale;
-// 			int x2= x1 + b.width * NET_INPUTWIDTH / scale + 0.5;
-// 			int y1= b.y * NET_INPUTWIDTH / scale;
-// 			int y2= y1 + b.height * NET_INPUTHEIGHT / scale + 0.5;
-
-//             if(x1  < 0) x1  = 0;
-//             if(x2> img.cols-1) x2 = img.cols-1;
-//             if(y1 < 0) y1 = 0;
-//             if(y2 > img.rows-1) y2 = img.rows-1;
-// 			//std::cout << labels[topclass] << "\t@ (" << x1 << ", " << y1 << ") (" << x2 << ", " << y2 << ")" << "\n";
-
-//             rectangle(img, cv::Point(x1, y1), cv::Point(x2, y2), colorArray[class_%10], 3);
-//             putText(img, labelstr, cv::Point(x1, y1 - 12), 1, 2, cv::Scalar(0, 255, 0, 255));
-//             }
-// 		}
-// 		imwrite("./display.jpg", img);
-// 	return 0;
-// }

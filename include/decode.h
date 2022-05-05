@@ -1,13 +1,16 @@
+#include <stdint.h>
+
 #include "main.h"
 
-/* 
-    decode.cpp中的四个数据解码函数
-    decode.cpp中有详细说明
-*/
-cv::Rect_<float> get_yolo_box(float *x, float *biases, int n, int index, int i, int j, 
-                            int lw, int lh, int netw, int neth, int stride);
+// output type: uint8
+int post_process_u8(uint8_t *input0, uint8_t *input1, uint8_t *input2, int model_in_h, int model_in_w,
+                 int h_offset, int w_offset, float resize_scale, float conf_threshold, float nms_threshold, 
+                 std::vector<uint8_t> &qnt_zps, std::vector<float> &qnt_scales,
+                 detect_result_group_t *group);
 
-void get_network_boxes(float* predictions, int netw, int neth, int GRID, int* masks, 
-                       float* anchors, int &box_off, detection* dets);
+// output type: fp32
+int post_process_fp(float *input0, float *input1, float *input2, int model_in_h, int model_in_w,
+                 int h_offset, int w_offset, float resize_scale, float conf_threshold, float nms_threshold, 
+                 detect_result_group_t *group);
 
-int outputs_transform(float* output_buff[], int net_width, int net_height, detection* dets);
+int readLines(const char *fileName, char *lines[], int max_line);
