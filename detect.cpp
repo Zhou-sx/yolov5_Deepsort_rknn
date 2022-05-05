@@ -161,7 +161,7 @@ int rknn_fp::detect(cv::Mat img){
 
     // rknn outputs get
 	for(int i=0;i<_n_output;i++){
-		_output_buff[i] = (int8_t*)_output_mems[i]->virt_addr;
+		_output_buff[i] = (float*)_output_mems[i]->virt_addr;
 	}
 
     return perf_run.run_duration;
@@ -193,6 +193,31 @@ int detect_process(const char *model_path, int cpuid, rknn_core_mask core_mask){
 	float sum_time = 0;
 	int cost_time = 0; // rknn接口查询返回
 	float npu_performance = 0.0;
+
+	// Letter box resize
+	float img_wh_ratio = (float)IMG_WIDTH / (float)IMG_HEIGHT;
+	float input_wh_ratio = (float)NET_INPUTWIDTH / (float)NET_INPUTHEIGHT;
+	float resize_scale=0;
+	int resize_width;
+	int resize_height;
+	int h_pad;
+	int w_pad;
+	if (img_wh_ratio >= input_wh_ratio){
+		//pad height dim
+		resize_scale = (float)NET_INPUTWIDTH / (float)IMG_WIDTH;
+		resize_width = NET_INPUTWIDTH;
+		resize_height = (int)((float)IMG_HEIGHT * resize_scale);
+		w_pad = 0;
+		h_pad = (NET_INPUTHEIGHT - resize_height)/ 2;
+	}
+	else{
+		//pad width dim
+		resize_scale = (float)NET_INPUTHEIGHT / (float)IMG_HEIGHT;
+		resize_width = (int)((float)IMG_WIDTH * resize_scale);
+		resize_height = NET_INPUTHEIGHT;
+		w_pad = (NET_INPUTWIDTH - resize_width) / 2;
+		h_pad = 0;
+	}
 
 	while (1)
 	{
@@ -228,11 +253,6 @@ int detect_process(const char *model_path, int cpuid, rknn_core_mask core_mask){
 			printf("NPU inference Error");
 		}
 		
-		// 约4ms
-		// double start_time = what_time_is_it_now();
-		float scale_w = (float)NET_INPUTWIDTH / IMG_WIDTH;
-		float scale_h = (float)NET_INPUTHEIGHT / IMG_HEIGHT;
-
 		detect_result_group_t detect_result_group;
 		std::vector<float> out_scales;
 		std::vector<int32_t> out_zps;
@@ -241,8 +261,12 @@ int detect_process(const char *model_path, int cpuid, rknn_core_mask core_mask){
 			out_scales.push_back(detect_fp._output_attrs[i].scale);
 			out_zps.push_back(detect_fp._output_attrs[i].zp);
 		}
-		post_process((int8_t *)detect_fp._output_buff[0], (int8_t *)detect_fp._output_buff[1], (int8_t *)detect_fp._output_buff[2],
-					NET_INPUTHEIGHT, NET_INPUTWIDTH, BOX_THRESH, NMS_THRESH,scale_w, scale_h, out_zps, out_scales, &detect_result_group);
+		// if valid nbox is few, cost time can be ignored.
+		// 补边左上角对齐 因此 w_pad = h_pad = 0
+		// double start_time = what_time_is_it_now();
+		post_process_fp((float *)detect_fp._output_buff[0], (float *)detect_fp._output_buff[1], (float *)detect_fp._output_buff[2],
+		 				NET_INPUTHEIGHT, NET_INPUTWIDTH, 0, 0, resize_scale, BOX_THRESH, NMS_THRESH, &detect_result_group);
+		detect_result_group.id = input.index;
 		// double end_time = what_time_is_it_now();
 		// cost_time = end_time - start_time;
 		npu_performance = cal_NPU_performance(history_time, sum_time, cost_time / 1.0e3);
@@ -251,7 +275,7 @@ int detect_process(const char *model_path, int cpuid, rknn_core_mask core_mask){
 			usleep(1000);
 		}
 		imageout_idx res_pair;
-		res_pair.img = input.img_pad;
+		res_pair.img = input.img_src;
 		res_pair.dets = detect_result_group;
 		mtxqueueDetOut.lock();
 		queueDetOut.push(res_pair);

@@ -4,9 +4,9 @@
 #include "videoio.h"
 #include "detect.h"
 
+bool add_head = true;
 string PROJECT_DIR = "/home/linaro/workspace/yolov5_c";
-string MODEL_PATH = PROJECT_DIR + "/model/best_nofocus_hyx.rknn";
-char* DEVICE_ID = (char*)"a056846056897056";
+string MODEL_PATH = PROJECT_DIR + "/model/best_nofocus_hyx_1920.rknn";
 string VIDEO_PATH = PROJECT_DIR + "/data/DJI_0001_S_cut.mp4";
 string VIDEO_SAVEPATH = PROJECT_DIR + "/data/results.mp4";
 
@@ -45,12 +45,12 @@ int main() {
     // cv::Mat img_src = cv::imread(IMAGE_PATH);
     // detect_process(MODEL_PATH.c_str(), 0, img_src);
 
-    const int thread_num = 3;
+    const int thread_num = 5;
     array<thread, thread_num> threads;
     threads = {   
                   thread(detect_process, MODEL_PATH.c_str(), 0, RKNN_NPU_CORE_0),
-                //   thread(detect_process, MODEL_PATH.c_str(), 1, RKNN_NPU_CORE_1),
-                //   thread(detect_process, MODEL_PATH.c_str(), 2, RKNN_NPU_CORE_2),
+                  thread(detect_process, MODEL_PATH.c_str(), 1, RKNN_NPU_CORE_0),
+                  thread(detect_process, MODEL_PATH.c_str(), 2, RKNN_NPU_CORE_0),
                   thread(videoRead, VIDEO_PATH.c_str(), 6),
                   thread(videoWrite, VIDEO_SAVEPATH.c_str(), 7),
               };

@@ -25,7 +25,7 @@ public:
     rknn_tensor_attr _output_attrs[3];
     rknn_tensor_mem* _input_mems[1];
     rknn_tensor_mem* _output_mems[3];
-    int8_t* _output_buff[3];
+    float* _output_buff[3];
     /*
         NPU初始化
         model_path： 模型路径

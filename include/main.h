@@ -41,7 +41,7 @@ using namespace cv;
 #define OBJ_NUMB_MAX_SIZE 64
 
 // 阈值
-#define NMS_THRESH        0.6
+#define NMS_THRESH        0.2
 #define BOX_THRESH        0.5
 
 // 每一层nbox的数量
@@ -85,6 +85,7 @@ typedef struct _BOX_RECT
 typedef struct __detect_result_t
 {
     char name[OBJ_NAME_MAX_SIZE];
+    int class_index;
     BOX_RECT box;
     float prop;
 } detect_result_t;
