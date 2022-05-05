@@ -53,7 +53,7 @@ void videoRead(const char *video_name, int cpuid)
 	bReading = true;//读写状态标记
 	while (1) 
 	{  
-		cv::Mat img_src, img_resize;
+		cv::Mat img_src;
 		// 如果读不到图片 或者 bReading 不在读取状态则跳出
 		if (!bReading || !video.read(img_src) || idxInputImage >= video_probs.Frame_cnt) {
 			// cout << "read video stream failed! Maybe to the end!" << endl;
@@ -62,9 +62,14 @@ void videoRead(const char *video_name, int cpuid)
 			video.release();
 			break;
 		}
-		// post_do.resize(img_src, img_resize);
+		// resize 方法
+		cv::Mat img_pad;
+		post_do.resize(img_src, img_pad);
+		// cv::Mat img_pad(IMG_PAD, IMG_PAD, CV_8UC3);
+		// memcpy(img_pad.data, img_src.data, IMG_WIDTH*IMG_HEIGHT*IMG_CHANNEL);
+
 		mtxQueueInput.lock();
-		queueInput.push(input_image(idxInputImage, img_src, img_resize));
+		queueInput.push(input_image(idxInputImage, img_src, img_pad));
 		mtxQueueInput.unlock();
 		idxInputImage++;
 	}
@@ -89,7 +94,6 @@ void videoWrite(const char* save_path,int cpuid)
 	cpu_set_t mask;
 	CPU_ZERO(&mask);
 	CPU_SET(cpuid, &mask);
-	float scale = get_max_scale(IMG_WIDTH, IMG_HEIGHT, NET_INPUTWIDTH, NET_INPUTHEIGHT); // 预处理缩放比例
 
 	if (pthread_setaffinity_np(pthread_self(), sizeof(mask), &mask) < 0)
 		cerr << "set thread affinity failed" << endl;
@@ -115,12 +119,11 @@ void videoWrite(const char* save_path,int cpuid)
 		// 如果queueDetOut存在元素 就尝试写
 		if (queueDetOut.size() > 0) {
 			mtxqueueDetOut.lock();
-			det_res detect_res = queueDetOut.front();
+			imageout_idx res_pair = queueDetOut.front();
 			queueDetOut.pop();
 			mtxqueueDetOut.unlock();
-			cv::Mat img = detect_res.img;
-			// draw_image(img, scale, detect_res.res, detect_res.nboxes_left, 0.3);
-			// vid_writer.write(img); // Save-video
+			draw_image(res_pair.img, res_pair.dets);
+			vid_writer.write(img); // Save-video
 		}
 		// 最后一帧检测结束 bWriting置为false 此时如果queueOutput仍存在元素 继续写
 		else if(!bDetecting){
@@ -139,51 +142,24 @@ cv::Scalar colorArray[2]={
 	cv::Scalar(139,0,0,255),
 	cv::Scalar(139,0,139,255),
 };
-int draw_image(cv::Mat img,float scale,detection* dets,int total,float thresh)
+int draw_image(cv::Mat img,detect_result_group_t detect_result_group)
 {
-	//::cvtColor(img, img, cv::COLOR_RGB2BGR);
-	for(int i=0;i<total;i++){
-		char labelstr[4096]={0};
-		int class_=-1;
-		int topclass=-1;
-		float topclass_score=0;
-		if(dets[i].objectness==0) continue;
-		for(int j=0;j<nclasses;j++){
-			if(dets[i].prob[j]>thresh){
-				if(topclass_score<dets[i].prob[j]){
-					topclass_score=dets[i].prob[j];
-					topclass=j;
-				}
-				if(class_<0){
-					strcat(labelstr,labels[j].data());
-					class_=j;
-				}
-				else{
-					strcat(labelstr,",");
-					strcat(labelstr,labels[j].data());
-				}
-			}
-		}
-		//如果class>0说明框中有物体,需画框
-		if(class_>=0){
-			cv::Rect_<float> b=dets[i].bbox;
-			//计算坐标 先根据缩放后的图计算绝对坐标 然后除以scale缩放到原来的图
-			//又因为原点重合 因此缩放后的结果就是原结果
-			int x1 = b.x * NET_INPUTWIDTH / scale;
-			int x2= x1 + b.width * NET_INPUTWIDTH / scale + 0.5;
-			int y1= b.y * NET_INPUTWIDTH / scale;
-			int y2= y1 + b.height * NET_INPUTHEIGHT / scale + 0.5;
-
-            if(x1  < 0) x1  = 0;
-            if(x2> img.cols-1) x2 = img.cols-1;
-            if(y1 < 0) y1 = 0;
-            if(y2 > img.rows-1) y2 = img.rows-1;
-			//std::cout << labels[topclass] << "\t@ (" << x1 << ", " << y1 << ") (" << x2 << ", " << y2 << ")" << "\n";
-
-            rectangle(img, cv::Point(x1, y1), cv::Point(x2, y2), colorArray[class_%10], 3);
-            putText(img, labelstr, cv::Point(x1, y1 - 12), 1, 2, cv::Scalar(0, 255, 0, 255));
-            }
-		}
-		// imwrite("./display.jpg", img);
+	char text[256];
+    for (int i = 0; i < detect_result_group.count; i++)
+    {
+        detect_result_t *det_result = &(detect_result_group.results[i]);
+        sprintf(text, "%s %.1f%%", det_result->name, det_result->prop * 100);
+        printf("%s @ (%d %d %d %d) %f\n",
+               det_result->name,
+               det_result->box.left, det_result->box.top, det_result->box.right, det_result->box.bottom,
+               det_result->prop);
+        int x1 = det_result->box.left;
+        int y1 = det_result->box.top;
+        int x2 = det_result->box.right;
+        int y2 = det_result->box.bottom;
+        rectangle(img, cv::Point(x1, y1), cv::Point(x2, y2), cv::Scalar(255, 0, 0, 255), 3);
+        putText(img, text, cv::Point(x1, y1 + 12), cv::FONT_HERSHEY_SIMPLEX, 0.5, cv::Scalar(0, 0, 0));
+    }
+	imwrite("./display.jpg", img);
 	return 0;
 }

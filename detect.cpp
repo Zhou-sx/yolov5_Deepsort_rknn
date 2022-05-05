@@ -47,7 +47,7 @@ rknn_fp::rknn_fp(const char *model_path, int cpuid, rknn_core_mask core_mask)
 		exit(-1);
 	}
 	
-    // ret = rknn_init(&ctx, model, model_len, RKNN_FLAG_COLLECT_PERF_MASK, NULL);
+    // ret = rknn_init(&ctx, model, m odel_len, RKNN_FLAG_COLLECT_PERF_MASK, NULL);
 	ret = rknn_init(&ctx, model, model_len, 0, NULL);
 	if(ret < 0)
 	{
@@ -161,7 +161,7 @@ int rknn_fp::detect(cv::Mat img){
 
     // rknn outputs get
 	for(int i=0;i<_n_output;i++){
-		_output_buff[i] = (float*)_output_mems[i]->virt_addr;
+		_output_buff[i] = (int8_t*)_output_mems[i]->virt_addr;
 	}
 
     return perf_run.run_duration;
@@ -223,32 +223,39 @@ int detect_process(const char *model_path, int cpuid, rknn_core_mask core_mask){
 		if(input.index == 0){
 			start_time = what_time_is_it_now();
 		} 
-		cost_time = detect_fp.detect(input.img_resize);
+		cost_time = detect_fp.detect(input.img_pad);
 		if(cost_time == -1){
 			printf("NPU inference Error");
 		}
-
+		
 		// 约4ms
 		// double start_time = what_time_is_it_now();
-		detection* dets=(detection*) calloc(nboxes_total,sizeof(detection));
-		int nboxes_valid = outputs_transform(detect_fp._output_buff, NET_INPUTHEIGHT, NET_INPUTHEIGHT, dets);
-		detection* nms_res=(detection*) calloc(nboxes_total,sizeof(detection));
-		int nboxes_left = nms_sort(dets, nms_res, nboxes_valid, nclasses); 
-		det_res detect_res;
-		detect_res.idx = input.index;
-		detect_res.nboxes_left = nboxes_left;
-		detect_res.img = input.img_src;
-		memcpy(detect_res.res, nms_res, sizeof(detection)*nboxes_left); //将nms后的结果复制到nms_res结构体中
+		float scale_w = (float)NET_INPUTWIDTH / IMG_WIDTH;
+		float scale_h = (float)NET_INPUTHEIGHT / IMG_HEIGHT;
+
+		detect_result_group_t detect_result_group;
+		std::vector<float> out_scales;
+		std::vector<int32_t> out_zps;
+		for (int i = 0; i < detect_fp._n_output; ++i)
+		{
+			out_scales.push_back(detect_fp._output_attrs[i].scale);
+			out_zps.push_back(detect_fp._output_attrs[i].zp);
+		}
+		post_process((int8_t *)detect_fp._output_buff[0], (int8_t *)detect_fp._output_buff[1], (int8_t *)detect_fp._output_buff[2],
+					NET_INPUTHEIGHT, NET_INPUTWIDTH, BOX_THRESH, NMS_THRESH,scale_w, scale_h, out_zps, out_scales, &detect_result_group);
 		// double end_time = what_time_is_it_now();
 		// cost_time = end_time - start_time;
 		npu_performance = cal_NPU_performance(history_time, sum_time, cost_time / 1.0e3);
 
-		while(detect_res.idx != idxOutputImage){
+		while(detect_result_group.id != idxOutputImage){
 			usleep(1000);
 		}
+		imageout_idx res_pair;
+		res_pair.img = input.img_pad;
+		res_pair.dets = detect_result_group;
 		mtxqueueDetOut.lock();
-		queueDetOut.push(detect_res);
-		printf("%f NPU(%d) performance : %f (%d)\n", what_time_is_it_now()/1000, cpuid, npu_performance, detect_res.idx);
+		queueDetOut.push(res_pair);
+		printf("%f NPU(%d) performance : %f (%d)\n", what_time_is_it_now()/1000, cpuid, npu_performance, detect_result_group.id);
 		// draw_image(input.img_src, detect_fp.post_do.scale, nms_res, nboxes_left, 0.3);
 		idxOutputImage = idxOutputImage + 1;
 		mtxqueueDetOut.unlock();

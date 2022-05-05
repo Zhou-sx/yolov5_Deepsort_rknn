@@ -10,7 +10,7 @@ set(
 
 include_directories(${include_libs})
 
-add_executable(test yolov5_c.cpp videoio.cpp detect.cpp decode.cpp nms.cpp)
+add_executable(test yolov5_c.cpp videoio.cpp detect.cpp decode.cpp)
 
 # 添加动态链接库opencv及pthread
 set(opencv_lib "/home/linaro/workspace/opencv/lib")

@@ -1,6 +1,5 @@
 #include "main.h"
 #include "decode.h"
-#include "nms.h"
 
 extern bool bReading;
 extern bool bDetecting;     // 目标检测进程状态
@@ -13,7 +12,7 @@ extern int idxOutputImage;                // next frame index to be output 保�
 extern mutex mtxQueueInput;               
 extern queue<input_image> queueInput;  // input queue
 extern mutex mtxqueueDetOut;
-extern queue<det_res> queueDetOut;        // Det output queue
+extern queue<imageout_idx> queueDetOut;        // Det output queue
 
 
 class rknn_fp{
@@ -26,7 +25,7 @@ public:
     rknn_tensor_attr _output_attrs[3];
     rknn_tensor_mem* _input_mems[1];
     rknn_tensor_mem* _output_mems[3];
-    float* _output_buff[3];
+    int8_t* _output_buff[3];
     /*
         NPU初始化
         model_path： 模型路径

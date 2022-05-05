@@ -5,7 +5,7 @@ using namespace std;
 extern mutex mtxQueueInput;
 extern queue<input_image> queueInput;  // input queue client
 extern mutex mtxqueueDetOut;
-extern queue<det_res> queueDetOut;        // Det output queue
+extern queue<imageout_idx> queueDetOut;        // Det output queue
 extern mutex mtxQueueOutput;
 extern queue<Mat> queueOutput;  // 目标追踪输出队列
 
@@ -35,4 +35,4 @@ public:
 void videoRead(const char* video_name, int cpuid);
 float get_max_scale(int input_width, int input_height, int net_width, int net_height);
 void videoWrite(const char* save_path,int cpuid) ;
-int draw_image(cv::Mat img,float scale,detection* dets,int total,float thresh);
+int draw_image(cv::Mat img, detect_result_group_t detect_result_group);
