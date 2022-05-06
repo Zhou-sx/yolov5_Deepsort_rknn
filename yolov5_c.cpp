@@ -6,7 +6,7 @@
 
 bool add_head = false;
 string PROJECT_DIR = "/home/linaro/workspace/yolov5_c";
-string MODEL_PATH = PROJECT_DIR + "/model/best_nofocus_hyx.rknn";
+string MODEL_PATH = PROJECT_DIR + "/model/best_nofocus_relu.rknn";
 string VIDEO_PATH = PROJECT_DIR + "/data/DJI_0001_S_cut.mp4";
 string VIDEO_SAVEPATH = PROJECT_DIR + "/data/results.mp4";
 
