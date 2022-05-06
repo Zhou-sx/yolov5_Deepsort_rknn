@@ -29,7 +29,7 @@ void preprocess::resize(cv::Mat &img, cv::Mat &_img)
     }
 	_img = cv::Mat(cv::Size(input_width, input_height), CV_8UC3, resize_buf);
 
-	// cv::imwrite("resize_input.jpg", _img);
+	cv::imwrite("resize_input.jpg", _img);
 }
 
 /*---------------------------------------------------------

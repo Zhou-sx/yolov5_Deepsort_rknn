@@ -19,7 +19,6 @@ bool bDetecting = true; // 目标检测进程状态
 video_property video_probs; // 视频属性类
 double start_time; // Video Detection开始时间
 double end_time;   // Video Detection结束时间
-int NPU_ID[3] = {1, 2, 4};
 
 // 多线程控制相关
 mutex mtxQueueInput;        		  // mutex of input queue client

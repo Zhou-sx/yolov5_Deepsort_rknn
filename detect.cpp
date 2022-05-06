@@ -210,7 +210,7 @@ int detect_process(const char *model_path, int cpuid, rknn_core_mask core_mask){
 		resize_width = NET_INPUTWIDTH;
 		resize_height = (int)((float)IMG_HEIGHT * resize_scale);
 		w_pad = 0;
-		h_pad = (NET_INPUTHEIGHT - resize_height)/ 2;
+		h_pad = (NET_INPUTHEIGHT - resize_height) / 2;
 	}
 	else{
 		//pad width dim
@@ -267,7 +267,7 @@ int detect_process(const char *model_path, int cpuid, rknn_core_mask core_mask){
 		// 补边左上角对齐 因此 w_pad = h_pad = 0
 		// double start_time = what_time_is_it_now();
 		post_process_fp((float *)detect_fp._output_buff[0], (float *)detect_fp._output_buff[1], (float *)detect_fp._output_buff[2],
-		 				NET_INPUTHEIGHT, NET_INPUTWIDTH, 0, 0, resize_scale, BOX_THRESH, NMS_THRESH, &detect_result_group);
+		 				NET_INPUTHEIGHT, NET_INPUTWIDTH, h_pad, w_pad, resize_scale, BOX_THRESH, NMS_THRESH, &detect_result_group);
 		detect_result_group.id = input.index;
 		// double end_time = what_time_is_it_now();
 		// cost_time = end_time - start_time;
