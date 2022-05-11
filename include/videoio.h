@@ -6,6 +6,7 @@
 #include "opencv2/videoio/videoio_c.h"
 using namespace std;
 
+extern vector<cv::Mat> imagePool;
 extern mutex mtxQueueInput;
 extern queue<input_image> queueInput;  // input queue client
 extern mutex mtxqueueDetOut;
@@ -44,6 +45,7 @@ public:
 
 
 void videoRead(const char* video_name, int cpuid);
+void videoResize(int cpuid);
 vector<float> get_max_scale(int input_width, int input_height, int net_width, int net_height);
 void videoWrite(const char* save_path,int cpuid) ;
 int draw_image(cv::Mat& img, detect_result_group_t detect_result_group);

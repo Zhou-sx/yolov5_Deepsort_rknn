@@ -29,11 +29,11 @@ void preprocess::resize(cv::Mat &img, cv::Mat &_img)
     }
 	_img = cv::Mat(cv::Size(input_width, input_height), CV_8UC3, resize_buf);
 
-	cv::imwrite("resize_input.jpg", _img);
+	// cv::imwrite("resize_input.jpg", _img);
 }
 
 /*---------------------------------------------------------
-	读视频
+	读视频 缓存在imagePool
 	video_name: 视频路径
 	cpuid:		绑定到某核
 ----------------------------------------------------------*/
@@ -68,13 +68,41 @@ void videoRead(const char *video_name, int cpuid)
 	{  
 		cv::Mat img_src;
 		// 如果读不到图片 或者 bReading 不在读取状态则跳出
-		if (!bReading || !video.read(img_src) || idxInputImage >= video_probs.Frame_cnt) {
-			// cout << "read video stream failed! Maybe to the end!" << endl;
-			// video.set(CV_CAP_PROP_POS_FRAMES, 0);
-			// continue;
+		if (!video.read(img_src)) {
+			cout << "read video stream failed! Maybe to the end!" << endl;
 			video.release();
 			break;
 		}
+		imagePool.emplace_back(img_src);
+	}
+	cout << "VideoRead is over." << endl;
+}
+
+/*---------------------------------------------------------
+	调整视频尺寸
+	cpuid:		绑定到某核
+----------------------------------------------------------*/
+void videoResize(int cpuid){
+	// int initialization_finished = 1;
+	cpu_set_t mask;
+
+	CPU_ZERO(&mask);
+	CPU_SET(cpuid, &mask);
+
+	if (pthread_setaffinity_np(pthread_self(), sizeof(mask), &mask) < 0)
+		cerr << "set thread affinity failed" << endl;
+
+	printf("Bind videoTransClient process to CPU %d\n", cpuid);
+
+	preprocess post_do;
+	bReading = true;//读写状态标记
+	while (1) 
+	{  
+		// 如果读不到图片 或者 bReading 不在读取状态则跳出
+		if (!bReading || idxInputImage >= video_probs.Frame_cnt) {
+			break;
+		}
+		cv::Mat img_src = imagePool[idxInputImage];
 		cv::Mat img_pad;
 		if (add_head){
 			// adaptive head
@@ -82,7 +110,7 @@ void videoRead(const char *video_name, int cpuid)
 			memcpy(img_pad.data, img_src.data, IMG_WIDTH*IMG_HEIGHT*IMG_CHANNEL);
 		}
 		else{
-			// opencv resize
+			// rga resize
 			post_do.resize(img_src, img_pad);
 		}
 
@@ -92,7 +120,7 @@ void videoRead(const char *video_name, int cpuid)
 		idxInputImage++;
 	}
 	bReading = false;
-	cout << "VideoRead is over." << endl;
+	cout << "VideoResize is over." << endl;
 }
 
  /*
