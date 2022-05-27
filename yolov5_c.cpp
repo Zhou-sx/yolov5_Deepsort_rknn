@@ -53,7 +53,7 @@ int main() {
     class DeepSort track(SORT_MODEL_PATH, 1, 512, 6, RKNN_NPU_CORE_2);
 
     const int thread_num = 4;
-    array<thread, thread_num> threads;
+    std::array<thread, thread_num> threads;
     videoRead(VIDEO_PATH.c_str(), 7);
     threads = {   
                   thread(&Yolo::detect_process, &detect1),  // 类成员函数特殊写法
