@@ -1,13 +1,18 @@
-#include "string"
+#include <unistd.h>
+#include <string>
+#include <iostream>
 
 #include "deepsort.h"
 #include "main.h"
 using namespace std;
 
+struct video_property;
 extern queue<imageout_idx> queueDetOut;  // output queue
-extern queue<Mat> queueOutput;  		 // output queue 目标追踪输出队列
+extern queue<imageout_idx> queueOutput;  		 // output queue 目标追踪输出队列
 extern video_property video_probs;       // 视频属性类
-extern bool bReading;                    // 目标检测进程状态
+extern bool bDetecting;                  // 目标检测进程状态
+extern bool bTracking;                   // 目标追踪进程状态               
+extern double end_time;                  // 整个视频追踪结束
 
 DeepSort::DeepSort(std::string modelPath, int batchSize, int featureDim, int cpu_id, rknn_core_mask npu_id) {
     this->npu_id = npu_id;
@@ -103,18 +108,22 @@ int DeepSort::track_process(){
     while (1) 
 	{
 		if (queueDetOut.empty()) {
+            if(!bDetecting){
+                // queueDetOut为空并且 bDetecting标志已经全部检测完成 说明追踪完毕了
+                end_time = what_time_is_it_now();
+                bTracking = false;
+                break;
+            }
 			usleep(1000);
             continue;
 		}
 		
-        sort(queueDetOut.front().img , queueDetOut.front().dets.results);
-        showDetection(queueDetOut.front().img, queueDetOut.front().dets.results);
-        if (queueDetOut.front().dets.id == video_probs.Frame_cnt - 1) {
-            bReading = false;
-            break;
-		}
+        sort(queueDetOut.front().img , queueDetOut.front().dets.results);  // 会更新 dets.results
+        queueOutput.push(queueDetOut.front());
+        // showDetection(queueDetOut.front().img, queueDetOut.front().dets.results);
         queueDetOut.pop();
     }
+    cout << "Track is over." << endl;
     return 0;
 }
 

@@ -1,3 +1,8 @@
+#include <unistd.h>
+#include <iostream>
+#include <string.h>
+#include <queue>
+
 #include "rknn_fp.h"
 
 // rknn_fp构造函数 NPU初始化
@@ -168,4 +173,23 @@ int rknn_fp::inference(unsigned char *data){
 	}
 
     return perf_run.run_duration;
+}
+
+float rknn_fp::cal_NPU_performance(std::queue<float> &history_time, float &sum_time, float cost_time){
+	// 统计NPU在最近一段时间内的速度
+	if(history_time.size()<10){
+		history_time.push(cost_time);
+		sum_time += cost_time;
+	}
+	else if(history_time.size()==10){
+		sum_time -= history_time.front();
+		sum_time += cost_time;
+		history_time.pop();
+		history_time.push(cost_time);
+	}
+	else{
+		printf("cal_NPU_performance Error\n");
+		return -1;
+	}
+	return sum_time / history_time.size();
 }

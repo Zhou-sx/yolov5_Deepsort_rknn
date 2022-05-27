@@ -1,24 +1,23 @@
+#include <unistd.h>
+
+#include "main.h"
+#include "decode.h"
 #include "detect.h"
+#include "videoio.h"
 
+using namespace std;
 
-float Yolo::cal_NPU_performance(queue<float> &history_time, float &sum_time, float cost_time){
-	// 统计NPU在最近一段时间内的速度
-	if(history_time.size()<10){
-		history_time.push(cost_time);
-		sum_time += cost_time;
-	}
-	else if(history_time.size()==10){
-		sum_time -= history_time.front();
-		sum_time += cost_time;
-		history_time.pop();
-		history_time.push(cost_time);
-	}
-	else{
-		printf("cal_NPU_performance Error\n");
-		return -1;
-	}
-	return sum_time / history_time.size();
-}
+extern bool bReading;
+extern bool bDetecting;     // 目标检测进程状态
+// 开始 结束时间 ns
+extern double start_time;
+extern video_property video_probs; // 视频属性类
+// 多线程控制相关
+extern int idxOutputImage;            // next frame index to be output 保证queueDetOut_server序号正确
+extern mutex mtxQueueInput;               
+extern queue<input_image> queueInput;  // input queue
+extern mutex mtxQueueDetOut;
+extern queue<imageout_idx> queueDetOut;// Det output queue
 
 int Yolo::detect_process(){
 	
@@ -110,17 +109,17 @@ int Yolo::detect_process(){
 		imageout_idx res_pair;
 		res_pair.img = input.img_src;
 		res_pair.dets = detect_result_group;
-		mtxqueueDetOut.lock();
+		mtxQueueDetOut.lock();
 		queueDetOut.push(res_pair);
 		printf("%f NPU(%d) performance : %f (%d)\n", what_time_is_it_now()/1000, _cpu_id, npu_performance, detect_result_group.id);
 		// draw_image(input.img_src, post_do.scale, nms_res, nboxes_left, 0.3);
 		idxOutputImage = idxOutputImage + 1;
-		mtxqueueDetOut.unlock();
+		mtxQueueDetOut.unlock();
 		if(input.index == video_probs.Frame_cnt-1){
-			end_time = what_time_is_it_now();
 			break; // 不加也可 queueInput.empty() + breading可以跳出
 		}
 	}
+	cout << "Detect is over." << endl;
 	bDetecting = false;
     return 0;
 }

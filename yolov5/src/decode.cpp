@@ -18,8 +18,10 @@
 #include <string.h>
 #include <sys/time.h>
 #include <vector>
-#include "decode.h"
 #include <stdint.h>
+
+#include "decode.h"
+
 #define LABEL_NALE_TXT_PATH "./model/hongwai_2_labels_list.txt"
 
 static char *labels[OBJ_CLASS_NUM];

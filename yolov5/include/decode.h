@@ -1,5 +1,3 @@
-#include <stdint.h>
-
 #include "main.h"
 
 // output type: uint8

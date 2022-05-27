@@ -1,45 +1,47 @@
+#include <unistd.h>
 #include <stdio.h>
+#include <string>
+#include <string.h>
+#include <mutex>
 #include <thread>
+
 #include "main.h"
 #include "detect.h"
 #include "deepsort.h"
+#include "mytime.h"
+#include "videoio.h"
+
+using namespace std;
 
 bool add_head = false;
 string PROJECT_DIR = "/home/linaro/workspace/yolov5_c";
 string YOLO_MODEL_PATH = PROJECT_DIR + "/model/best_nofocus_relu.rknn";
-string SORT_MODEL_PATH = PROJECT_DIR + "/model/osnet_x1_0_imagenet.rknn";
+string SORT_MODEL_PATH = PROJECT_DIR + "/model/osnet_x0_25_market.rknn";
 
 string VIDEO_PATH = PROJECT_DIR + "/data/DJI_0001_S_cut.mp4";
 string VIDEO_SAVEPATH = PROJECT_DIR + "/data/results.mp4";
 
 // 各任务进行状态序号
+video_property video_probs; // 视频属性类
 int idxInputImage = 0;  // image index of input video
 int idxOutputImage = 0; // image index of output video
 int idxTrackImage = 0;	  // 目标追踪下一帧要处理的对象
 bool bReading = true;   // flag of input
-bool bDetecting = true; // 目标检测进程状态
-video_property video_probs; // 视频属性类
+bool bDetecting = true; // Detect是否完成
+bool bTracking = true;  // Track是否完成
 double start_time; // Video Detection开始时间
 double end_time;   // Video Detection结束时间
 
 // 多线程控制相关
 vector<cv::Mat> imagePool;        // video cache
-mutex mtxQueueInput;        		  // mutex of input queue
+mutex mtxQueueInput;        	  // mutex of input queue
 queue<input_image> queueInput;    // input queue 
-mutex mtxqueueDetOut;
+mutex mtxQueueDetOut;
 queue<imageout_idx> queueDetOut;  // output queue
-// priority_queue<imageout_idx, vector<imageout_idx>, paircomp> queueShow;  // display queue 目标追踪的输入
-queue<Mat> queueOutput;  		  // output queue 目标追踪输出队列
+mutex mtxQueueOutput;
+queue<imageout_idx> queueOutput;  // output queue 目标追踪输出队列
 
-double what_time_is_it_now()
-{
-	// 单位: ms
-    struct timeval time;
-    if (gettimeofday(&time,NULL)){
-        return 0;
-    }
-    return (double)time.tv_sec * 1000 + (double)time.tv_usec * .001;
-}
+
 
 void videoRead(const char *video_name, int cpuid);
 void videoResize(int cpuid);

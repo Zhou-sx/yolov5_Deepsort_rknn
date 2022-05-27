@@ -1,28 +1,11 @@
-/*
-    warning:不包含rknn_api相关设置
-*/
-#pragma once // 防止重定义 这个头文件会被多次引用
-#include <unistd.h>
-#include <mutex>
-#include <iostream>
-#include <string>
-#include <string.h>
+#pragma once // 防止重定义
 #include <vector>
-#include <set>
-#include <queue>
-#include <sys/time.h>
 #include "opencv2/opencv.hpp"
-
-#include "rknn_api.h"
 
 #ifndef BOX_H
 #include "box.h"
 #define BOX_H
 #endif // BOX_H
-
-using namespace std;
-using namespace cv;
-
 
 #define BYTE unsigned char
 #define IMG_WIDTH 1920
@@ -44,7 +27,7 @@ using namespace cv;
 
 // 阈值
 #define NMS_THRESH        0.2
-#define BOX_THRESH        0.5
+#define BOX_THRESH        0.2
 
 // 每一层nbox的数量
 #define nboxes_0 GRID0*GRID0*nanchor
@@ -52,14 +35,6 @@ using namespace cv;
 #define nboxes_2 GRID2*GRID2*nanchor
 #define nboxes_total nboxes_0+nboxes_1+nboxes_2
 
-// 视频属性类
-struct video_property{
-    int Frame_cnt;
-    int Fps;
-    int Video_width;
-    int Video_height;
-    double Video_fourcc;
-};
 
 struct input_image{
     input_image(){
@@ -93,17 +68,5 @@ struct imageout_idx
 	cv::Mat img; 
 	detect_result_group_t dets;
 };
-
-// /*
-//     输出队列
-//     按照帧数frame_id排序
-// */ 
-// class paircomp {
-// public:
-//     bool operator()(const imageout_idx &n1, const imageout_idx &n2) const {
-//         return n1.frame_id > n2.frame_id;
-//     }
-// };
-
 
 extern double what_time_is_it_now();

@@ -21,7 +21,7 @@ set(
 
 include_directories(${include_libs})
 aux_source_directory(${PROJECT_SOURCE_DIR}/deepsort/src DEEPSORT_SRC_DIR)
-# aux_source_directory(${PROJECT_SOURCE_DIR}/src DEEPSORT_SRC_DIR)
+aux_source_directory(${PROJECT_SOURCE_DIR}/src DEEPSORT_SRC_DIR)
 
 add_library(deepsort ${DEEPSORT_SRC_DIR})
 

@@ -1,5 +1,22 @@
 #include "videoio.h"
+#include "main.h"
 
+using namespace std;
+
+extern video_property video_probs;
+extern vector<cv::Mat> imagePool;
+extern mutex mtxQueueInput;
+extern queue<input_image> queueInput;  // input queue client
+extern mutex mtxQueueDetOut;
+extern queue<imageout_idx> queueDetOut;        // Det output queue
+extern mutex mtxQueueOutput;
+extern queue<imageout_idx> queueOutput;  // 目标追踪输出队列
+
+extern bool add_head;
+extern bool bReading;      // flag of input
+extern bool bDetecting;    // 目标检测进程状态
+extern bool bTracking;
+extern int idxInputImage;  // image index of input video
 
 preprocess::preprocess(){
 	input_height = NET_INPUTHEIGHT;
@@ -161,17 +178,17 @@ void videoWrite(const char* save_path,int cpuid)
 
 	while (1) 
 	{  
-		// 如果queueDetOut存在元素 就尝试写
-		if (queueDetOut.size() > 0) {
-			mtxqueueDetOut.lock();
-			imageout_idx res_pair = queueDetOut.front();
-			queueDetOut.pop();
-			mtxqueueDetOut.unlock();
+		// queueOutput 就尝试写
+		if (queueOutput.size() > 0) {
+			mtxQueueOutput.lock();
+ 			imageout_idx res_pair = queueOutput.front();
+			queueOutput.pop();
+			mtxQueueOutput.unlock();
 			draw_image(res_pair.img, res_pair.dets);
 			vid_writer.write(res_pair.img); // Save-video
 		}
-		// 最后一帧检测结束 bWriting置为false 此时如果queueOutput仍存在元素 继续写
-		else if(!bDetecting){
+		// 最后一帧检测/追踪结束 bWriting置为false 此时如果queueOutput仍存在元素 继续写
+		else if(!bTracking){
 			vid_writer.release();
 			break;
 		}
@@ -190,19 +207,15 @@ cv::Scalar colorArray[2]={
 int draw_image(cv::Mat &img,detect_result_group_t detect_result_group)
 {
 	char text[256];
-    for (int i = 0; i < detect_result_group.count; i++)
+    for (auto det_result : detect_result_group.results)
     {
-        DetectBox *det_result = &(detect_result_group.results[i]);
-        sprintf(text, "%s %.1f%%", det_result->name, det_result->confidence * 100);
-        // printf("%s @ (%d %d %d %d) %f\n",
-        //        det_result->name,
-        //        det_result->box.left, det_result->box.top, det_result->box.right, det_result->box.bottom,
-        //        det_result->prop);
-        int x1 = det_result->x1;
-        int y1 = det_result->y1;
-        int x2 = det_result->x2;
-        int y2 = det_result->y2;
-		int class_id = det_result->classID;
+        // sprintf(text, "%s %.1f%%", det_result.name, det_result.confidence * 100);
+		sprintf(text, "ID:%d", (int)det_result.trackID);
+        int x1 = det_result.x1;
+        int y1 = det_result.y1;
+        int x2 = det_result.x2;
+        int y2 = det_result.y2;
+		int class_id = det_result.classID;
         rectangle(img, cv::Point(x1, y1), cv::Point(x2, y2), colorArray[class_id%10], 3);
         putText(img, text, cv::Point(x1, y1 - 12), 1, 2, cv::Scalar(0, 255, 0, 255));
     }

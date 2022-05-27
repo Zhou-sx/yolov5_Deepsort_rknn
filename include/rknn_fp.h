@@ -2,9 +2,6 @@
 #define RKNN_FP
 
 #include "rknn_api.h"
-#include <unistd.h>
-#include <iostream>
-#include <string.h>
 
 class rknn_fp{
 public:
@@ -18,6 +15,7 @@ public:
     ~rknn_fp(void);
     void dump_tensor_attr(rknn_tensor_attr*);
     int inference(unsigned char *);
+    float cal_NPU_performance(std::queue<float> &, float &, float);
 public:
     int _cpu_id;
     int _n_input;

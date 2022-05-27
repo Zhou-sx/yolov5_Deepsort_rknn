@@ -1,11 +1,22 @@
+#include <queue>
+#include <iostream>
+
 #include "featuretensor.h"
+#include "mytime.h"
 
 void FeatureTensor::doInference(vector<cv::Mat>& imgMats, DETECTIONS& det) {
+    std::queue<float> history_time;
+	float sum_time = 0;
+	int cost_time = 0; // rknn接口查询返回
+	float npu_performance = 0.0;
+
     for (int i = 0;i < imgMats.size();i++){
-		inference(imgMats[i].data);
+		cost_time = inference(imgMats[i].data);
 		float* output = (float *)_output_buff[0];
 		for (int j = 0; j < featureDim; ++j)
             det[i].feature[j] = output[j];
+        npu_performance = cal_NPU_performance(history_time, sum_time, cost_time / 1.0e3);
+        printf("%f NPU(%d) performance : %f\n", what_time_is_it_now()/1000, _cpu_id, npu_performance);
 	}
 }
 

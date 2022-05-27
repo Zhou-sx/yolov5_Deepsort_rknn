@@ -1,7 +1,6 @@
 #ifndef FEATURETENSOR_H
 #define FEATURETENSOR_H
 
-#include <iostream>
 #include <opencv2/opencv.hpp>
 #include <vector>
 #include "model.hpp"

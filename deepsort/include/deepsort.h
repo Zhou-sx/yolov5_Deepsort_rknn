@@ -1,7 +1,6 @@
 #ifndef DEEPSORT_H
 #define DEEPSORT_H
 
-#include <iostream>
 #include <opencv2/opencv.hpp>
 #include "featuretensor.h"
 #include "tracker.h"
