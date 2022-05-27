@@ -396,17 +396,19 @@ int post_process_u8(uint8_t *input0, uint8_t *input1, uint8_t *input2, int model
         float y2 = y1 + filterBoxes[n * 4 + 3];
         int id = classId[n];
 
-        group->results[last_count].box.left = (int)((clamp(x1, 0, model_in_w) - w_offset) / resize_scale);
-        group->results[last_count].box.top = (int)((clamp(y1, 0, model_in_h) - h_offset) / resize_scale);
-        group->results[last_count].box.right = (int)((clamp(x2, 0, model_in_w) - w_offset) / resize_scale);
-        group->results[last_count].box.bottom = (int)((clamp(y2, 0, model_in_h)  - h_offset) / resize_scale);
-        group->results[last_count].prop = boxesScore[i];
-        group->results[last_count].class_index = id;
+        DetectBox detbox;
+        detbox.x1 = (int)((clamp(x1, 0, model_in_w) - w_offset) / resize_scale);
+        detbox.y1 = (int)((clamp(y1, 0, model_in_h) - h_offset) / resize_scale);
+        detbox.x2 = (int)((clamp(x2, 0, model_in_w) - w_offset) / resize_scale);
+        detbox.y2 = (int)((clamp(y2, 0, model_in_h)  - h_offset) / resize_scale);
+        detbox.confidence = boxesScore[i];
+        detbox.classID = id;
         char *label = labels[id];
-        strncpy(group->results[last_count].name, label, OBJ_NAME_MAX_SIZE);
+        strncpy(detbox.name, label, OBJ_NAME_MAX_SIZE);
+        group->results.push_back(detbox);
 
-        // printf("result %2d: (%4d, %4d, %4d, %4d), %s\n", i, group->results[last_count].box.left, group->results[last_count].box.top,
-        //        group->results[last_count].box.right, group->results[last_count].box.bottom, label);
+        // printf("result %2d: (%4d, %4d, %4d, %4d), %s\n", i, detbox.box.left, detbox.box.top,
+        //        detbox.box.right, detbox.box.bottom, label);
         last_count++;
     }
     group->count = last_count;
@@ -492,17 +494,18 @@ int post_process_fp(float *input0, float *input1, float *input2, int model_in_h,
         float y2 = y1 + filterBoxes[n * 4 + 3];
         int id = classId[n];
 
-        group->results[last_count].box.left = (int)((clamp(x1, 0, model_in_w) - w_offset) / resize_scale);
-        group->results[last_count].box.top = (int)((clamp(y1, 0, model_in_h) - h_offset) / resize_scale);
-        group->results[last_count].box.right = (int)((clamp(x2, 0, model_in_w) - w_offset) / resize_scale);
-        group->results[last_count].box.bottom = (int)((clamp(y2, 0, model_in_h)  - h_offset) / resize_scale);
-        group->results[last_count].prop = boxesScore[i];
-        group->results[last_count].class_index = id;
+        DetectBox detbox;
+        detbox.x1 = (int)((clamp(x1, 0, model_in_w) - w_offset) / resize_scale);
+        detbox.y1 = (int)((clamp(y1, 0, model_in_h) - h_offset) / resize_scale);
+        detbox.x2 = (int)((clamp(x2, 0, model_in_w) - w_offset) / resize_scale);
+        detbox.y2 = (int)((clamp(y2, 0, model_in_h)  - h_offset) / resize_scale);
+        detbox.confidence = boxesScore[i];
+        detbox.classID = id;
         char *label = labels[id];
-        strncpy(group->results[last_count].name, label, OBJ_NAME_MAX_SIZE);
-
-        // printf("result %2d: (%4d, %4d, %4d, %4d), %s\n", i, group->results[last_count].box.left, group->results[last_count].box.top,
-        //        group->results[last_count].box.right, group->results[last_count].box.bottom, label);
+        strncpy(detbox.name, label, OBJ_NAME_MAX_SIZE);
+        group->results.push_back(detbox);
+        // printf("result %2d: (%4d, %4d, %4d, %4d), %s\n", i, detbox.box.left, detbox.box.top,
+        //        detbox.box.right, detbox.box.bottom, label);
         last_count++;
     }
     group->count = last_count;

@@ -1,19 +1,21 @@
 #include <stdio.h>
 #include <thread>
 #include "main.h"
-#include "videoio.h"
 #include "detect.h"
+#include "deepsort.h"
 
 bool add_head = false;
 string PROJECT_DIR = "/home/linaro/workspace/yolov5_c";
-string MODEL_PATH = PROJECT_DIR + "/model/best_nofocus_relu.rknn";
+string YOLO_MODEL_PATH = PROJECT_DIR + "/model/best_nofocus_relu.rknn";
+string SORT_MODEL_PATH = PROJECT_DIR + "/model/osnet_x1_0_imagenet.rknn";
+
 string VIDEO_PATH = PROJECT_DIR + "/data/DJI_0001_S_cut.mp4";
 string VIDEO_SAVEPATH = PROJECT_DIR + "/data/results.mp4";
 
 // 各任务进行状态序号
 int idxInputImage = 0;  // image index of input video
 int idxOutputImage = 0; // image index of output video
-int idxShowImage = 0;	  // 目标追踪下一帧要处理的对象
+int idxTrackImage = 0;	  // 目标追踪下一帧要处理的对象
 bool bReading = true;   // flag of input
 bool bDetecting = true; // 目标检测进程状态
 video_property video_probs; // 视频属性类
@@ -25,11 +27,9 @@ vector<cv::Mat> imagePool;        // video cache
 mutex mtxQueueInput;        		  // mutex of input queue
 queue<input_image> queueInput;    // input queue 
 mutex mtxqueueDetOut;
-queue<imageout_idx> queueDetOut; // output queue
-mutex mtxQueueShow;                // mutex of display queue
+queue<imageout_idx> queueDetOut;  // output queue
 // priority_queue<imageout_idx, vector<imageout_idx>, paircomp> queueShow;  // display queue 目标追踪的输入
-mutex mtxQueueOutput;			  // mutex of output queue 最终输出
-queue<Mat> queueOutput;  		   		  // output queue 目标追踪输出队列
+queue<Mat> queueOutput;  		  // output queue 目标追踪输出队列
 
 double what_time_is_it_now()
 {
@@ -41,16 +41,24 @@ double what_time_is_it_now()
     return (double)time.tv_sec * 1000 + (double)time.tv_usec * .001;
 }
 
+void videoRead(const char *video_name, int cpuid);
+void videoResize(int cpuid);
+void videoWrite(const char* save_path,int cpuid);
+
 int main() {
-    const int thread_num = 3;
+    class Yolo detect1(YOLO_MODEL_PATH.c_str(), 4, RKNN_NPU_CORE_0, 1, 3);
+    class Yolo detect2(YOLO_MODEL_PATH.c_str(), 5, RKNN_NPU_CORE_1, 1, 3);
+    class DeepSort track(SORT_MODEL_PATH, 1, 512, 6, RKNN_NPU_CORE_2);
+
+    const int thread_num = 4;
     array<thread, thread_num> threads;
     videoRead(VIDEO_PATH.c_str(), 7);
     threads = {   
-                  thread(detect_process, MODEL_PATH.c_str(), 4, RKNN_NPU_CORE_0),
-                  thread(detect_process, MODEL_PATH.c_str(), 5, RKNN_NPU_CORE_1),
-                  // thread(detect_process, MODEL_PATH.c_str(), 6, RKNN_NPU_CORE_2),
+                  thread(&Yolo::detect_process, &detect1),  // 类成员函数特殊写法
+                  thread(&Yolo::detect_process, &detect2),
+                  thread(&DeepSort::track_process, &track),
                   thread(videoResize, 7),
-                  // thread(videoWrite, VIDEO_SAVEPATH.c_str(), 0),
+                //   thread(videoWrite, VIDEO_SAVEPATH.c_str(), 0),
               };
     for (int i = 0; i < thread_num; i++) threads[i].join();
     printf("Video detection mean cost time(ms): %f\n", (end_time-start_time) / video_probs.Frame_cnt);

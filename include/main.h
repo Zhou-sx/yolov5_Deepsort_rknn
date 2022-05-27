@@ -12,7 +12,14 @@
 #include <queue>
 #include <sys/time.h>
 #include "opencv2/opencv.hpp"
+
 #include "rknn_api.h"
+
+#ifndef BOX_H
+#include "box.h"
+#define BOX_H
+#endif // BOX_H
+
 using namespace std;
 using namespace cv;
 
@@ -34,10 +41,6 @@ using namespace cv;
 #define nyolo 3   //n yolo layers;
 #define nanchor 3 //n anchor per yolo layer
 #define PROP_BOX_SIZE     (5+OBJ_CLASS_NUM)
-
-// 标签
-#define OBJ_NAME_MAX_SIZE 16
-#define OBJ_NUMB_MAX_SIZE 64
 
 // 阈值
 #define NMS_THRESH        0.2
@@ -73,27 +76,11 @@ struct input_image{
 };
 
 
-typedef struct _BOX_RECT
-{
-    int left;
-    int right;
-    int top;
-    int bottom;
-} BOX_RECT;
-
-typedef struct __detect_result_t
-{
-    char name[OBJ_NAME_MAX_SIZE];
-    int class_index;
-    BOX_RECT box;
-    float prop;
-} detect_result_t;
-
 typedef struct _detect_result_group_t
 {
     int id;
     int count;
-    detect_result_t results[OBJ_NUMB_MAX_SIZE];
+    std::vector<DetectBox> results;
 } detect_result_group_t;
 
 /*
@@ -106,6 +93,7 @@ struct imageout_idx
 	cv::Mat img; 
 	detect_result_group_t dets;
 };
+
 // /*
 //     输出队列
 //     按照帧数frame_id排序
