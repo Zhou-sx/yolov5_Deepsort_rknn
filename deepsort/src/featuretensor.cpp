@@ -6,7 +6,7 @@
 
 
 void FeatureTensor::init(cv::Size netShape, int featureDim, int channel){
-    this->imgShape = imgShape;
+    this->imgShape = netShape;
     this->featureDim = featureDim;
     this->pre_do = PreResize(netShape.height, netShape.width, channel);
 }
@@ -39,7 +39,7 @@ bool FeatureTensor::getRectsFeature(const cv::Mat& img, DETECTIONS& det) {
         rect.width = (rect.x + rect.width <= img.cols ? rect.width : (img.cols - rect.x));
         rect.height = (rect.y + rect.height <= img.rows ? rect.height : (img.rows - rect.y));
         cv::Mat tempMat = img(rect).clone();
-        cv::resize(tempMat, tempMat, imgShape);  
+        // cv::resize(tempMat, tempMat, imgShape);  // opencv
         // pre_do.resize(tempMat, tempMat);  // rga
         mats.push_back(tempMat);
     }

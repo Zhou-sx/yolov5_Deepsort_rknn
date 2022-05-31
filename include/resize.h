@@ -14,9 +14,12 @@ class PreResize
 public:
     PreResize();
     PreResize(int, int, int);
+    void init(double, double);
     int input_height;
     int input_width;
     int input_channel;
+    double fx;  // scale along x
+    double fy;  // scale along y
     // init rga context
     rga_buffer_t src;
     rga_buffer_t dst;

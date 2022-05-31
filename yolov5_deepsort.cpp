@@ -52,7 +52,7 @@ int main() {
     class Yolo detect2(YOLO_MODEL_PATH.c_str(), 5, RKNN_NPU_CORE_1, 1, 3);
     class DeepSort track(SORT_MODEL_PATH, 1, 512, 6, RKNN_NPU_CORE_2);
 
-    const int thread_num = 4;
+    const int thread_num = 5;
     std::array<thread, thread_num> threads;
     videoRead(VIDEO_PATH.c_str(), 7);
     threads = {   
@@ -60,7 +60,7 @@ int main() {
                   thread(&Yolo::detect_process, &detect2),
                   thread(&DeepSort::track_process, &track),
                   thread(videoResize, 7),
-                //   thread(videoWrite, VIDEO_SAVEPATH.c_str(), 0),
+                  thread(videoWrite, VIDEO_SAVEPATH.c_str(), 0),
               };
     for (int i = 0; i < thread_num; i++) threads[i].join();
     printf("Video detection mean cost time(ms): %f\n", (end_time-start_time) / video_probs.Frame_cnt);

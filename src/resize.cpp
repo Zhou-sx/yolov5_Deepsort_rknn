@@ -10,6 +10,11 @@ PreResize::PreResize(int height, int width, int channel){
 	input_channel = channel;
 }
 
+void PreResize::init(double fx, double fy){
+    this->fx = fx;
+    this->fy = fy;
+}
+
 void PreResize::resize(cv::Mat &img, cv::Mat &_img)
 {
     memset(&src_rect, 0, sizeof(src_rect));

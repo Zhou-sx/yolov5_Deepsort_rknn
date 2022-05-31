@@ -91,15 +91,14 @@ void videoResize(int cpuid){
 			break;
 		}
 		cv::Mat img_src = imagePool[idxInputImage];
-		cv::Mat img_pad;
+		cv::Mat img_pad = cv::Mat(IMG_PAD, IMG_PAD, CV_8UC3);
+		memcpy(img_pad.data, img_src.data, IMG_WIDTH*IMG_HEIGHT*IMG_CHANNEL);
 		if (add_head){
 			// adaptive head
-			img_pad = cv::Mat(IMG_PAD, IMG_PAD, CV_8UC3);
-			memcpy(img_pad.data, img_src.data, IMG_WIDTH*IMG_HEIGHT*IMG_CHANNEL);
 		}
 		else{
 			// rga resize
-			pre_do.resize(img_src, img_pad);
+			pre_do.resize(img_pad, img_pad);
 		}
 
 		mtxQueueInput.lock();
@@ -114,13 +113,23 @@ void videoResize(int cpuid){
  /*
 	预处理的缩放比例
 	在不丢失原图比例的同时，尽可能的伸缩；同时为了保证检测效果，只允许缩放，不允许放大。
+	fx = 1 沿x轴缩放
+	fy = 1 沿y轴缩放
 */
-vector<float> get_max_scale(int input_width, int input_height, int net_width, int net_height)
+void get_max_scale(int input_width, int input_height, int net_width, int net_height, double &fx, double &fy)
 {
-    vector<float> scale = {  (float)net_width / input_width,
-							 (float)net_height /input_height
-					 	  };
-	return scale;
+    double img_wh_ratio = (double)input_width / (double)input_height;
+	double input_wh_ratio = (double)net_width / (double)net_height;
+	if (img_wh_ratio >= input_wh_ratio){
+		// 缩放相同倍数 w 先到达边界
+		fx = (double)net_width / input_width;
+		fy = (double)net_width / input_width;
+	}
+	else{
+		fx = (double)net_height / input_height;
+		fy = (double)net_height / input_height;
+	}
+	return;
 }
 
 // 写视频

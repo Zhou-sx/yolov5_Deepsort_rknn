@@ -14,6 +14,6 @@ struct video_property{
 
 void videoRead(const char* video_name, int cpuid);
 void videoResize(int cpuid);
-std::vector<float> get_max_scale(int input_width, int input_height, int net_width, int net_height);
+void get_max_scale(int , int , int , int , double &, double &);
 void videoWrite(const char* save_path,int cpuid) ;
 int draw_image(cv::Mat& , struct _detect_result_group_t);
