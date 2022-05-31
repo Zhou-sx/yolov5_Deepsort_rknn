@@ -8,8 +8,8 @@
 
 #include <cstddef>
 #include <vector>
-#include <Eigen/Core>
-#include <Eigen/Dense>
+#include </usr/local/include/Eigen/Core>
+#include </usr/local/include/Eigen/Dense>
 typedef struct CLSCONF {
     CLSCONF() {
         this->cls = -1;
