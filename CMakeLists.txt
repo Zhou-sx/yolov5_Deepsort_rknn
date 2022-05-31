@@ -1,5 +1,5 @@
 cmake_minimum_required(VERSION 3.0.0)
-project(test VERSION 0.1.0)
+project(yolov5_deepsort VERSION 0.1.0)
 
 add_subdirectory(deepsort)
 
@@ -17,7 +17,7 @@ include_directories(${include_libs})
 
 aux_source_directory(${PROJECT_SOURCE_DIR}/yolov5/src YOLO_SRC_DIR)
 aux_source_directory(${PROJECT_SOURCE_DIR}/src YOLO_SRC_DIR)
-add_executable(test yolov5_c.cpp ${YOLO_SRC_DIR})
+add_executable(yolov5_deepsort yolov5_deepsort.cpp ${YOLO_SRC_DIR})
 
 # 添加动态链接库opencv及pthread
 set(opencv_lib "/home/linaro/workspace/opencv/lib")
@@ -36,4 +36,4 @@ set(
 # 开启调试选项
 add_definitions("-g")
 
-target_link_libraries(test ${dynamic_libs} deepsort)
+target_link_libraries(yolov5_deepsort ${dynamic_libs} deepsort)

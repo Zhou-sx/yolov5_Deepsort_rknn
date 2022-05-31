@@ -1,4 +1,5 @@
 #include "videoio.h"
+#include "resize.h"
 #include "main.h"
 
 using namespace std;
@@ -18,36 +19,7 @@ extern bool bDetecting;    // 目标检测进程状态
 extern bool bTracking;
 extern int idxInputImage;  // image index of input video
 
-preprocess::preprocess(){
-	input_height = NET_INPUTHEIGHT;
-	input_width = NET_INPUTWIDTH;
-	input_channel = NET_INPUTCHANNEL;
-}
 
-void preprocess::resize(cv::Mat &img, cv::Mat &_img)
-{
-    memset(&src_rect, 0, sizeof(src_rect));
-    memset(&dst_rect, 0, sizeof(dst_rect));
-    memset(&src, 0, sizeof(src));
-    memset(&dst, 0, sizeof(dst));
-	int img_width = img.cols;
-    int img_height = img.rows;
-    void *resize_buf = malloc(input_height * input_width * input_channel);
-
-	src = wrapbuffer_virtualaddr((void *)img.data, img_width, img_height, RK_FORMAT_RGB_888);
-    dst = wrapbuffer_virtualaddr((void *)resize_buf, input_width, input_height, RK_FORMAT_RGB_888);
-    int ret = imcheck(src, dst, src_rect, dst_rect);
-
-	IM_STATUS STATUS = imresize(src, dst);
-    if (ret != IM_STATUS_NOERROR)
-    {
-        printf("%d, check error! %s", __LINE__, imStrError((IM_STATUS)ret));
-        exit(-1);
-    }
-	_img = cv::Mat(cv::Size(input_width, input_height), CV_8UC3, resize_buf);
-
-	// cv::imwrite("resize_input.jpg", _img);
-}
 
 /*---------------------------------------------------------
 	读视频 缓存在imagePool
@@ -79,7 +51,6 @@ void videoRead(const char *video_name, int cpuid)
     video_probs.Video_height = video.get(CV_CAP_PROP_FRAME_HEIGHT);
     video_probs.Video_fourcc = video.get(CV_CAP_PROP_FOURCC);
 
-	preprocess post_do;
 	bReading = true;//读写状态标记
 	while (1) 
 	{  
@@ -111,7 +82,7 @@ void videoResize(int cpuid){
 
 	printf("Bind videoTransClient process to CPU %d\n", cpuid);
 
-	preprocess post_do;
+	PreResize pre_do(NET_INPUTHEIGHT, NET_INPUTWIDTH, NET_INPUTCHANNEL);
 	bReading = true;//读写状态标记
 	while (1) 
 	{  
@@ -128,7 +99,7 @@ void videoResize(int cpuid){
 		}
 		else{
 			// rga resize
-			post_do.resize(img_src, img_pad);
+			pre_do.resize(img_src, img_pad);
 		}
 
 		mtxQueueInput.lock();

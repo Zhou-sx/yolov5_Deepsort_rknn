@@ -6,6 +6,7 @@ set(
     "${PROJECT_SOURCE_DIR}/deepsort/include"
     /home/linaro/workspace/opencv/include/opencv4
     ${PROJECT_SOURCE_DIR}/3rdparty/librknn_api/include
+    ${PROJECT_SOURCE_DIR}/3rdparty/rga/include
 )
 set(opencv_lib "/home/linaro/workspace/opencv/lib")
 set(
@@ -17,6 +18,7 @@ set(
     ${opencv_lib}/libopencv_videoio.so
     ${opencv_lib}/libopencv_video.so
     ${PROJECT_SOURCE_DIR}/3rdparty/librknn_api/aarch64/librknnrt.so
+    ${PROJECT_SOURCE_DIR}/3rdparty/rga/lib/librga.so
 )
 
 include_directories(${include_libs})

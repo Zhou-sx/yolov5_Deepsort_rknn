@@ -29,8 +29,7 @@ DeepSort::DeepSort(std::string modelPath, int batchSize, int featureDim, int cpu
 void DeepSort::init() {
     objTracker = new tracker(maxCosineDist, maxBudget);
     featureExtractor = new FeatureTensor(enginePath.c_str(), cpu_id, npu_id, 1, 1);
-    featureExtractor->imgShape = imgShape;
-    featureExtractor->featureDim = featureDim;
+    featureExtractor->init(imgShape, featureDim, NET_INPUTCHANNEL);
 }
 
 DeepSort::~DeepSort() {
