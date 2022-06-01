@@ -14,7 +14,7 @@
 using namespace std;
 
 bool add_head = false;
-string PROJECT_DIR = "/home/linaro/workspace/yolov5_c";
+string PROJECT_DIR = "/mnt/yolov5-on-rk3588";
 string YOLO_MODEL_PATH = PROJECT_DIR + "/model/best_nofocus_relu.rknn";
 string SORT_MODEL_PATH = PROJECT_DIR + "/model/osnet_x0_25_market.rknn";
 
