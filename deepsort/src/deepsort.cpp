@@ -4,6 +4,7 @@
 
 #include "deepsort.h"
 #include "main.h"
+#include "mytime.h"
 using namespace std;
 
 struct video_property;

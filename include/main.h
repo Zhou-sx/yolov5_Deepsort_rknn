@@ -68,5 +68,3 @@ struct imageout_idx
 	cv::Mat img; 
 	detect_result_group_t dets;
 };
-
-extern double what_time_is_it_now();

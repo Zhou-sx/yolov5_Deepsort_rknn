@@ -1,6 +1,7 @@
 #include <unistd.h>
 
 #include "main.h"
+#include "mytime.h"
 #include "decode.h"
 #include "detect.h"
 #include "videoio.h"
