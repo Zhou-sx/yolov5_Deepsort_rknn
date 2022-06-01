@@ -1,6 +1,6 @@
 #include <unistd.h>
 
-#include "main.h"
+#include "common.h"
 #include "mytime.h"
 #include "decode.h"
 #include "detect.h"

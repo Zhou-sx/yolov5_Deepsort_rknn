@@ -1,4 +1,4 @@
-#include "main.h"
+#include "common.h"
 
 // output type: uint8
 int post_process_u8(uint8_t *input0, uint8_t *input1, uint8_t *input2, int model_in_h, int model_in_w,

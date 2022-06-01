@@ -5,7 +5,7 @@
 #include <mutex>
 #include <thread>
 
-#include "main.h"
+#include "common.h"
 #include "detect.h"
 #include "deepsort.h"
 #include "mytime.h"

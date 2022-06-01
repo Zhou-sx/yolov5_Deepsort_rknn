@@ -1,6 +1,6 @@
 #include "videoio.h"
 #include "resize.h"
-#include "main.h"
+#include "common.h"
 
 using namespace std;
 

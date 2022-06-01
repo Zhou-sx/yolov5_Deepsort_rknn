@@ -3,7 +3,7 @@
 #include <iostream>
 
 #include "deepsort.h"
-#include "main.h"
+#include "common.h"
 #include "mytime.h"
 using namespace std;
 

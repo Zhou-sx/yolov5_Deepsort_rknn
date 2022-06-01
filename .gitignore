@@ -1,5 +1,7 @@
-build
+build/*
+!build/.gitkeep
+data/*
+!data/.gitkeep
+
 .vscode
 make
-data/*
-res/*
