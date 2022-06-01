@@ -1,6 +1,7 @@
 build/*
 !build/.gitkeep
 data/*
+!data/DJI_0001_S_cut.mp4
 !data/.gitkeep
 
 .vscode
