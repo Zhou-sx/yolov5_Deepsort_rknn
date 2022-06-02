@@ -1,11 +1,19 @@
-#ifndef BOX_H
-#define BOX_H
 #include <vector>
 #include "opencv2/opencv.hpp"
 
 // 标签
 #define OBJ_NAME_MAX_SIZE 16
 #define OBJ_NUMB_MAX_SIZE 64
+
+#ifndef BOX_H
+#define BOX_H
+struct Object
+{
+    cv::Rect_<float> rect;
+    int label;
+    float prob;
+};
+#endif
 
 typedef struct DetectBox {
     DetectBox(float x1=0, float y1=0, float x2=0, float y2=0, 
@@ -24,4 +32,3 @@ typedef struct DetectBox {
     float classID;
     float trackID;
 } DetectBox;
-#endif

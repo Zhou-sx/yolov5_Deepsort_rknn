@@ -9,9 +9,9 @@ extern vector<cv::Mat> imagePool;
 extern mutex mtxQueueInput;
 extern queue<input_image> queueInput;  // input queue client
 extern mutex mtxQueueDetOut;
-extern queue<imageout_idx> queueDetOut;        // Det output queue
+extern queue<detect_result_group_t> queueDetOut;        // Det output queue
 extern mutex mtxQueueOutput;
-extern queue<imageout_idx> queueOutput;  // 目标追踪输出队列
+extern queue<track_result_group_t> queueOutput;  // 目标追踪输出队列
 
 extern bool add_head;
 extern bool bReading;      // flag of input
@@ -161,10 +161,10 @@ void videoWrite(const char* save_path,int cpuid)
 		// queueOutput 就尝试写
 		if (queueOutput.size() > 0) {
 			mtxQueueOutput.lock();
- 			imageout_idx res_pair = queueOutput.front();
+ 			track_result_group_t res_pair = queueOutput.front();
 			queueOutput.pop();
 			mtxQueueOutput.unlock();
-			draw_image(res_pair.img, res_pair.dets);
+			draw_image(res_pair.img, res_pair.output_stracks);
 			vid_writer.write(res_pair.img); // Save-video
 		}
 		// 最后一帧检测/追踪结束 bWriting置为false 此时如果queueOutput仍存在元素 继续写
@@ -184,20 +184,23 @@ cv::Scalar colorArray[2]={
 	cv::Scalar(139,0,0,255),
 	cv::Scalar(139,0,139,255),
 };
-int draw_image(cv::Mat &img,detect_result_group_t detect_result_group)
+
+cv::Scalar get_color(int idx)
+{
+	idx += 3;
+	return cv::Scalar(37 * idx % 255, 17 * idx % 255, 29 * idx % 255);
+}
+
+int draw_image(cv::Mat &img, vector<STrack> output_stracks)
 {
 	char text[256];
-    for (auto det_result : detect_result_group.results)
+    for (auto output_strack : output_stracks)
     {
-        // sprintf(text, "%s %.1f%%", det_result.name, det_result.confidence * 100);
-		sprintf(text, "ID:%d", (int)det_result.trackID);
-        int x1 = det_result.x1;
-        int y1 = det_result.y1;
-        int x2 = det_result.x2;
-        int y2 = det_result.y2;
-		int class_id = det_result.classID;
-        rectangle(img, cv::Point(x1, y1), cv::Point(x2, y2), colorArray[class_id%10], 3);
-        putText(img, text, cv::Point(x1, y1 - 12), 1, 2, cv::Scalar(0, 255, 0, 255));
+		sprintf(text, "ID:%d", (int)output_strack.track_id);
+		vector<float> tlwh = output_strack.tlwh;
+		cv::Scalar scalar = get_color(output_strack.track_id);
+        rectangle(img, cv::Rect(tlwh[0], tlwh[1], tlwh[2], tlwh[3]), scalar, 3);
+        putText(img, text, cv::Point(tlwh[0], tlwh[1] - 5), 1, 2, cv::Scalar(0, 255, 0, 255));
     }
 	// imwrite("./display.jpg", img);
 	return 0;

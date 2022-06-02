@@ -7,6 +7,11 @@
 #define BOX_H
 #endif // BOX_H
 
+#ifndef STRACK
+#define STRACK
+#include "STrack.h"
+#endif
+
 #define BYTE unsigned char
 #define IMG_WIDTH 1920
 #define IMG_HEIGHT 1080
@@ -54,8 +59,8 @@ struct input_image{
 typedef struct _detect_result_group_t
 {
     int id;
-    int count;
-    std::vector<DetectBox> results;
+    cv::Mat img;
+    std::vector<Object> results;
 } detect_result_group_t;
 
 /*
@@ -63,8 +68,8 @@ typedef struct _detect_result_group_t
     img：     背景图
     dets：    检测结果结构体数组
 */ 
-struct imageout_idx
+typedef struct _track_result_group_t
 {
-	cv::Mat img; 
-	detect_result_group_t dets;
-};
+    cv::Mat img;
+    std::vector<STrack> output_stracks;
+} track_result_group_t;

@@ -1,7 +1,7 @@
 cmake_minimum_required(VERSION 3.0.0)
 project(yolov5_deepsort VERSION 0.1.0)
 
-add_subdirectory(deepsort)
+add_subdirectory(bytetrack) 
 
 set(OpenCV_DIR /home/linaro/workspace/opencv/lib/cmake/opencv4)  # 填入OpenCVConfig.cmake
 find_package(OpenCV 4 REQUIRED)
@@ -11,7 +11,7 @@ set(
     include_libs  
     "${PROJECT_SOURCE_DIR}/include"
     "${PROJECT_SOURCE_DIR}/yolov5/include"
-    "${PROJECT_SOURCE_DIR}/deepsort/include"
+    "${PROJECT_SOURCE_DIR}/bytetrack/include"
     ${PROJECT_SOURCE_DIR}/3rdparty/librknn_api/include
     ${PROJECT_SOURCE_DIR}/3rdparty/rga/include
 )
@@ -33,4 +33,4 @@ set(
 add_definitions("-g")
 
 target_link_libraries(yolov5_deepsort ${OpenCV_LIBS})
-target_link_libraries(yolov5_deepsort ${dynamic_libs} deepsort)
+target_link_libraries(yolov5_deepsort ${dynamic_libs} bytetrack)

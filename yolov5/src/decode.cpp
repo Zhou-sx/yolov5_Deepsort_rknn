@@ -103,78 +103,89 @@ static float CalculateOverlap(float xmin0, float ymin0, float xmax0, float ymax0
     return u <= 0.f ? 0.f : (i / u);
 }
 
-static int nms(int validCount, std::vector<float> &outputLocations, std::vector<int> &order, float threshold)
+static void qsort_descent_inplace(std::vector<Object>& faceobjects, int left, int right)
 {
-    for (int i = 0; i < validCount; ++i)
+    int i = left;
+    int j = right;
+    float p = faceobjects[(left + right) / 2].prob;
+
+    while (i <= j)
     {
-        if (order[i] == -1)
+        while (faceobjects[i].prob > p)
+            i++;
+
+        while (faceobjects[j].prob < p)
+            j--;
+
+        if (i <= j)
         {
-            continue;
-        }
-        int n = order[i];
-        for (int j = i + 1; j < validCount; ++j)
-        {
-            int m = order[j];
-            if (m == -1)
-            {
-                continue;
-            }
-            float xmin0 = outputLocations[n * 4 + 0];
-            float ymin0 = outputLocations[n * 4 + 1];
-            float xmax0 = outputLocations[n * 4 + 0] + outputLocations[n * 4 + 2];
-            float ymax0 = outputLocations[n * 4 + 1] + outputLocations[n * 4 + 3];
+            // swap
+            std::swap(faceobjects[i], faceobjects[j]);
 
-            float xmin1 = outputLocations[m * 4 + 0];
-            float ymin1 = outputLocations[m * 4 + 1];
-            float xmax1 = outputLocations[m * 4 + 0] + outputLocations[m * 4 + 2];
-            float ymax1 = outputLocations[m * 4 + 1] + outputLocations[m * 4 + 3];
-
-            float iou = CalculateOverlap(xmin0, ymin0, xmax0, ymax0, xmin1, ymin1, xmax1, ymax1);
-
-            if (iou > threshold)
-            {
-                order[j] = -1;
-            }
+            i++;
+            j--;
         }
     }
-    return 0;
+
+    #pragma omp parallel sections
+    {
+        #pragma omp section
+        {
+            if (left < j) qsort_descent_inplace(faceobjects, left, j);
+        }
+        #pragma omp section
+        {
+            if (i < right) qsort_descent_inplace(faceobjects, i, right);
+        }
+    }
 }
 
-static int quick_sort_indice_inverse(
-    std::vector<float> &input,
-    int left,
-    int right,
-    std::vector<int> &indices)
+static void qsort_descent_inplace(std::vector<Object>& objects)
 {
-    float key;
-    int key_index;
-    int low = left;
-    int high = right;
-    if (left < right)
+    if (objects.empty())
+        return;
+
+    qsort_descent_inplace(objects, 0, objects.size() - 1);
+}
+
+static inline float intersection_area(const Object& a, const Object& b)
+{
+    cv::Rect_<float> inter = a.rect & b.rect;
+    return inter.area();
+}
+
+static void nms_sorted_bboxes(const std::vector<Object>& faceobjects, std::vector<int>& picked, float nms_threshold)
+{
+    picked.clear();
+
+    const int n = faceobjects.size();
+
+    std::vector<float> areas(n);
+    for (int i = 0; i < n; i++)
     {
-        key_index = indices[left];
-        key = input[left];
-        while (low < high)
-        {
-            while (low < high && input[high] <= key)
-            {
-                high--;
-            }
-            input[low] = input[high];
-            indices[low] = indices[high];
-            while (low < high && input[low] >= key)
-            {
-                low++;
-            }
-            input[high] = input[low];
-            indices[high] = indices[low];
-        }
-        input[low] = key;
-        indices[low] = key_index;
-        quick_sort_indice_inverse(input, left, low - 1, indices);
-        quick_sort_indice_inverse(input, low + 1, right, indices);
+        areas[i] = faceobjects[i].rect.area();
     }
-    return low;
+
+    for (int i = 0; i < n; i++)
+    {
+        const Object& a = faceobjects[i];
+
+        int keep = 1;
+        for (int j = 0; j < (int)picked.size(); j++)
+        {
+            const Object& b = faceobjects[picked[j]];
+
+            // intersection over union
+            float inter_area = intersection_area(a, b);
+            float union_area = areas[i] + areas[picked[j]] - inter_area;
+            // float IoU = inter_area / union_area
+            if (inter_area / union_area > nms_threshold)
+                keep = 0;
+        }
+
+        if (keep)
+            picked.push_back(i);
+    }
 }
 
 static float sigmoid(float x)
@@ -205,67 +216,8 @@ static float deqnt_affine_to_f32(uint8_t qnt, uint8_t zp, float scale)
     return ((float)qnt - (float)zp) * scale;
 }
 
-static int process_u8(uint8_t *input, int *anchor, int grid_h, int grid_w, int height, int width, int stride,
-                   std::vector<float> &boxes, std::vector<float> &boxScores, std::vector<int> &classId,
-                   float threshold, uint8_t zp, float scale)
-{
-
-    int validCount = 0;
-    int grid_len = grid_h * grid_w;
-    float thres = unsigmoid(threshold);
-    uint8_t thres_u8 = qnt_f32_to_affine(thres, zp, scale);
-    for (int a = 0; a < 3; a++)
-    {
-        for (int i = 0; i < grid_h; i++)
-        {
-            for (int j = 0; j < grid_w; j++)
-            {
-                uint8_t box_confidence = input[(PROP_BOX_SIZE * a + 4) * grid_len + i * grid_w + j];
-                if (box_confidence >= thres_u8)
-                {
-                    int offset = (PROP_BOX_SIZE * a) * grid_len + i * grid_w + j;
-                    uint8_t *in_ptr = input + offset;
-                    float box_x = sigmoid(deqnt_affine_to_f32(*in_ptr, zp, scale)) * 2.0 - 0.5;
-                    float box_y = sigmoid(deqnt_affine_to_f32(in_ptr[grid_len], zp, scale)) * 2.0 - 0.5;
-                    float box_w = sigmoid(deqnt_affine_to_f32(in_ptr[2 * grid_len], zp, scale)) * 2.0;
-                    float box_h = sigmoid(deqnt_affine_to_f32(in_ptr[3 * grid_len], zp, scale)) * 2.0;
-                    box_x = (box_x + j) * (float)stride;
-                    box_y = (box_y + i) * (float)stride;
-                    box_w = box_w * box_w * (float)anchor[a * 2];
-                    box_h = box_h * box_h * (float)anchor[a * 2 + 1];
-                    box_x -= (box_w / 2.0);
-                    box_y -= (box_h / 2.0);
-                    boxes.push_back(box_x);
-                    boxes.push_back(box_y);
-                    boxes.push_back(box_w);
-                    boxes.push_back(box_h);
-
-                    uint8_t maxClassProbs = in_ptr[5 * grid_len];
-                    int maxClassId = 0;
-                    for (int k = 1; k < OBJ_CLASS_NUM; ++k)
-                    {
-                        uint8_t prob = in_ptr[(5 + k) * grid_len];
-                        if (prob > maxClassProbs)
-                        {
-                            maxClassId = k;
-                            maxClassProbs = prob;
-                        }
-                    }
-                    float box_conf_f32 = sigmoid(deqnt_affine_to_f32(box_confidence, zp, scale));
-                    float class_prob_f32 = sigmoid(deqnt_affine_to_f32(maxClassProbs, zp, scale));
-                    boxScores.push_back(box_conf_f32* class_prob_f32);
-                    classId.push_back(maxClassId);
-                    validCount++;
-                }
-            }
-        }
-    }
-    return validCount;
-}
-
-static int process_fp(float *input, int *anchor, int grid_h, int grid_w, int height, int width, int stride,
-                   std::vector<float> &boxes, std::vector<float> &boxScores, std::vector<int> &classId,
-                   float threshold)
+static void process_fp(float *input, int *anchor, int grid_h, int grid_w, int height, 
+                       int width, int stride, std::vector<Object>& objects, float threshold)
 {
 
     int validCount = 0;
@@ -292,39 +244,34 @@ static int process_fp(float *input, int *anchor, int grid_h, int grid_w, int hei
                     box_h = box_h * box_h * (float)anchor[a * 2 + 1];
                     box_x -= (box_w / 2.0);
                     box_y -= (box_h / 2.0);
-                    boxes.push_back(box_x);
-                    boxes.push_back(box_y);
-                    boxes.push_back(box_w);
-                    boxes.push_back(box_h);
 
                     float maxClassProbs = in_ptr[5 * grid_len];
                     int maxClassId = 0;
                     for (int k = 1; k < OBJ_CLASS_NUM; ++k)
                     {
                         float prob = in_ptr[(5 + k) * grid_len];
-                        if (prob > maxClassProbs)
-                        {
-                            maxClassId = k;
-                            maxClassProbs = prob;
-                        }
+                        Object obj;
+                        obj.rect.x = box_x;
+                        obj.rect.y = box_y;
+                        obj.rect.width = box_w;
+                        obj.rect.height = box_h;
+                        obj.label = k;
+                        obj.prob = sigmoid(prob);
+
+                        objects.push_back(obj);
                     }
-                    float box_conf_f32 = sigmoid(box_confidence);
-                    float class_prob_f32 = sigmoid(maxClassProbs);
-                    boxScores.push_back(box_conf_f32* class_prob_f32);
-                    classId.push_back(maxClassId);
-                    validCount++;
                 }
             }
         }
     }
-    return validCount;
+    return;
 }
 
-int post_process_u8(uint8_t *input0, uint8_t *input1, uint8_t *input2, int model_in_h, int model_in_w,
-                 int h_offset, int w_offset, float resize_scale, float conf_threshold, float nms_threshold,
-                 std::vector<uint8_t> &qnt_zps, std::vector<float> &qnt_scales,
-                 detect_result_group_t *group)
+
+int post_process_fp(float *input0, float *input1, float *input2, int model_in_h, int model_in_w,int h_offset, 
+                    int w_offset, float resize_scale, float conf_threshold, float nms_threshold, std::vector<Object>& objects)
 {
+    std::vector<Object> proposals;
     static int init = -1;
     if (init == -1)
     {
@@ -337,7 +284,6 @@ int post_process_u8(uint8_t *input0, uint8_t *input1, uint8_t *input2, int model
 
         init = 0;
     }
-    memset(group, 0, sizeof(detect_result_group_t));
 
     std::vector<float> filterBoxes;
     std::vector<float> boxesScore;
@@ -345,172 +291,51 @@ int post_process_u8(uint8_t *input0, uint8_t *input1, uint8_t *input2, int model
     int stride0 = 8;
     int grid_h0 = model_in_h / stride0;
     int grid_w0 = model_in_w / stride0;
-    int validCount0 = 0;
-    validCount0 = process_u8(input0, (int *)anchor0, grid_h0, grid_w0, model_in_h, model_in_w,
-                          stride0, filterBoxes, boxesScore, classId, conf_threshold, qnt_zps[0], qnt_scales[0]);
+    process_fp(input0, (int *)anchor0, grid_h0, grid_w0, model_in_h, 
+               model_in_w, stride0, proposals, conf_threshold);
 
     int stride1 = 16;
     int grid_h1 = model_in_h / stride1;
     int grid_w1 = model_in_w / stride1;
-    int validCount1 = 0;
-    validCount1 = process_u8(input1, (int *)anchor1, grid_h1, grid_w1, model_in_h, model_in_w,
-                          stride1, filterBoxes, boxesScore, classId, conf_threshold, qnt_zps[1], qnt_scales[1]);
+    process_fp(input1, (int *)anchor1, grid_h1, grid_w1, model_in_h, 
+               model_in_w,stride1, proposals, conf_threshold);
 
     int stride2 = 32;
     int grid_h2 = model_in_h / stride2;
     int grid_w2 = model_in_w / stride2;
-    int validCount2 = 0;
-    validCount2 = process_u8(input2, (int *)anchor2, grid_h2, grid_w2, model_in_h, model_in_w,
-                          stride2, filterBoxes, boxesScore, classId, conf_threshold, qnt_zps[2], qnt_scales[2]);
+    process_fp(input2, (int *)anchor2, grid_h2, grid_w2, model_in_h, 
+               model_in_w, stride2, proposals, conf_threshold);
 
-    int validCount = validCount0 + validCount1 + validCount2;
-    // no object detect
-    if (validCount <= 0)
-    {
-        return 0;
-    }
+    qsort_descent_inplace(proposals);
 
-    std::vector<int> indexArray;
-    for (int i = 0; i < validCount; ++i)
-    {
-        indexArray.push_back(i);
-    }
+    std::vector<int> picked;
+    nms_sorted_bboxes(proposals, picked, NMS_THRESH);
 
-    quick_sort_indice_inverse(boxesScore, 0, validCount - 1, indexArray);
+    int count = picked.size();
+    std::cout << "num of boxes: " << count << std::endl;
 
-    nms(validCount, filterBoxes, indexArray, nms_threshold);
-
-    int last_count = 0;
-    group->count = 0;
+    objects.resize(count);
     /* box valid detect target */
-    for (int i = 0; i < validCount; ++i)
+    for (int i = 0; i < count; ++i)
     {
 
-        if (indexArray[i] == -1 || boxesScore[i] < conf_threshold || last_count >= OBJ_NUMB_MAX_SIZE)
-        {
-            continue;
-        }
-        int n = indexArray[i];
+        objects[i] = proposals[picked[i]];
 
-        float x1 = filterBoxes[n * 4 + 0];
-        float y1 = filterBoxes[n * 4 + 1];
-        float x2 = x1 + filterBoxes[n * 4 + 2];
-        float y2 = y1 + filterBoxes[n * 4 + 3];
-        int id = classId[n];
+        float x1 = objects[i].rect.x;
+        float y1 = objects[i].rect.y;
+        float x2 = objects[i].rect.x + objects[i].rect.width;
+        float y2 = objects[i].rect.y + objects[i].rect.height;
 
-        DetectBox detbox;
-        detbox.x1 = (int)((clamp(x1, 0, model_in_w) - w_offset) / resize_scale);
-        detbox.y1 = (int)((clamp(y1, 0, model_in_h) - h_offset) / resize_scale);
-        detbox.x2 = (int)((clamp(x2, 0, model_in_w) - w_offset) / resize_scale);
-        detbox.y2 = (int)((clamp(y2, 0, model_in_h)  - h_offset) / resize_scale);
-        detbox.confidence = boxesScore[i];
-        detbox.classID = id;
-        char *label = labels[id];
-        strncpy(detbox.name, label, OBJ_NAME_MAX_SIZE);
-        group->results.push_back(detbox);
+        x1 = (int)((clamp(x1, 0, model_in_w) - w_offset) / resize_scale);
+        y1 = (int)((clamp(y1, 0, model_in_h) - h_offset) / resize_scale);
+        x2 = (int)((clamp(x2, 0, model_in_w) - w_offset) / resize_scale);
+        y2 = (int)((clamp(y2, 0, model_in_h) - h_offset) / resize_scale);
 
-        // printf("result %2d: (%4d, %4d, %4d, %4d), %s\n", i, detbox.box.left, detbox.box.top,
-        //        detbox.box.right, detbox.box.bottom, label);
-        last_count++;
+        objects[i].rect.x = x1;
+        objects[i].rect.y = y1;
+        objects[i].rect.width = x2 - x1;
+        objects[i].rect.height = y2 - y1;
     }
-    group->count = last_count;
-
-    return 0;
-}
-
-
-int post_process_fp(float *input0, float *input1, float *input2, int model_in_h, int model_in_w,
-                 int h_offset, int w_offset, float resize_scale, float conf_threshold, float nms_threshold,
-                 detect_result_group_t *group)
-{
-    static int init = -1;
-    if (init == -1)
-    {
-        int ret = 0;
-        ret = loadLabelName(LABEL_NALE_TXT_PATH, labels);
-        if (ret < 0)
-        {
-            return -1;
-        }
-
-        init = 0;
-    }
-    memset(group, 0, sizeof(detect_result_group_t));
-
-    std::vector<float> filterBoxes;
-    std::vector<float> boxesScore;
-    std::vector<int> classId;
-    int stride0 = 8;
-    int grid_h0 = model_in_h / stride0;
-    int grid_w0 = model_in_w / stride0;
-    int validCount0 = 0;
-    validCount0 = process_fp(input0, (int *)anchor0, grid_h0, grid_w0, model_in_h, model_in_w,
-                          stride0, filterBoxes, boxesScore, classId, conf_threshold);
-
-    int stride1 = 16;
-    int grid_h1 = model_in_h / stride1;
-    int grid_w1 = model_in_w / stride1;
-    int validCount1 = 0;
-    validCount1 = process_fp(input1, (int *)anchor1, grid_h1, grid_w1, model_in_h, model_in_w,
-                          stride1, filterBoxes, boxesScore, classId, conf_threshold);
-
-    int stride2 = 32;
-    int grid_h2 = model_in_h / stride2;
-    int grid_w2 = model_in_w / stride2;
-    int validCount2 = 0;
-    validCount2 = process_fp(input2, (int *)anchor2, grid_h2, grid_w2, model_in_h, model_in_w,
-                          stride2, filterBoxes, boxesScore, classId, conf_threshold);
-
-    int validCount = validCount0 + validCount1 + validCount2;
-    // no object detect
-    if (validCount <= 0)
-    {
-        return 0;
-    }
-
-    std::vector<int> indexArray;
-    for (int i = 0; i < validCount; ++i)
-    {
-        indexArray.push_back(i);
-    }
-
-    quick_sort_indice_inverse(boxesScore, 0, validCount - 1, indexArray);
-
-    nms(validCount, filterBoxes, indexArray, nms_threshold);
-
-    int last_count = 0;
-    group->count = 0;
-    /* box valid detect target */
-    for (int i = 0; i < validCount; ++i)
-    {
-
-        if (indexArray[i] == -1 || boxesScore[i] < conf_threshold || last_count >= OBJ_NUMB_MAX_SIZE)
-        {
-            continue;
-        }
-        int n = indexArray[i];
-
-        float x1 = filterBoxes[n * 4 + 0];
-        float y1 = filterBoxes[n * 4 + 1];
-        float x2 = x1 + filterBoxes[n * 4 + 2];
-        float y2 = y1 + filterBoxes[n * 4 + 3];
-        int id = classId[n];
-
-        DetectBox detbox;
-        detbox.x1 = (int)((clamp(x1, 0, model_in_w) - w_offset) / resize_scale);
-        detbox.y1 = (int)((clamp(y1, 0, model_in_h) - h_offset) / resize_scale);
-        detbox.x2 = (int)((clamp(x2, 0, model_in_w) - w_offset) / resize_scale);
-        detbox.y2 = (int)((clamp(y2, 0, model_in_h)  - h_offset) / resize_scale);
-        detbox.confidence = boxesScore[i];
-        detbox.classID = id;
-        char *label = labels[id];
-        strncpy(detbox.name, label, OBJ_NAME_MAX_SIZE);
-        group->results.push_back(detbox);
-        // printf("result %2d: (%4d, %4d, %4d, %4d), %s\n", i, detbox.box.left, detbox.box.top,
-        //        detbox.box.right, detbox.box.bottom, label);
-        last_count++;
-    }
-    group->count = last_count;
 
     return 0;
 }
