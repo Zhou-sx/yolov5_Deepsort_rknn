@@ -19,6 +19,7 @@ typedef struct DetectBox {
         this->trackID = trackID;
     }
     char name[OBJ_NAME_MAX_SIZE];
+    cv::Rect_<float> bbox;
     float x1, y1, x2, y2;
     float confidence;
     float classID;

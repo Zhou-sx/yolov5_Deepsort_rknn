@@ -9,9 +9,9 @@ extern vector<cv::Mat> imagePool;
 extern mutex mtxQueueInput;
 extern queue<input_image> queueInput;  // input queue client
 extern mutex mtxQueueDetOut;
-extern queue<imageout_idx> queueDetOut;        // Det output queue
+extern queue<detect_result_group_t> queueDetOut;        // Det output queue
 extern mutex mtxQueueOutput;
-extern queue<imageout_idx> queueOutput;  // 目标追踪输出队列
+extern queue<track_result_group_t> queueOutput;  // 目标追踪输出队列
 
 extern bool add_head;
 extern bool bReading;      // flag of input
@@ -91,19 +91,23 @@ void videoResize(int cpuid){
 			break;
 		}
 		cv::Mat img_src = imagePool[idxInputImage];
-		cv::Mat img_pad = cv::Mat(IMG_PAD, IMG_PAD, CV_8UC3);
-		memcpy(img_pad.data, img_src.data, IMG_WIDTH*IMG_HEIGHT*IMG_CHANNEL);
 		if (add_head){
 			// adaptive head
+			cv::Mat img_pad = cv::Mat(IMG_PAD, IMG_PAD, CV_8UC3);
+			memcpy(img_pad.data, img_src.data, IMG_WIDTH*IMG_HEIGHT*IMG_CHANNEL);
+			mtxQueueInput.lock();
+			queueInput.push(input_image(idxInputImage, img_src, img_pad));
+			mtxQueueInput.unlock();
 		}
 		else{
 			// rga resize
-			pre_do.resize(img_pad, img_pad);
+			cv::Mat img_resz = cv::Mat(NET_INPUTHEIGHT, NET_INPUTWIDTH, CV_8UC3);
+			pre_do.resize(img_src, img_resz);
+			mtxQueueInput.lock();
+			queueInput.push(input_image(idxInputImage, img_src, img_resz));
+			mtxQueueInput.unlock();
 		}
 
-		mtxQueueInput.lock();
-		queueInput.push(input_image(idxInputImage, img_src, img_pad));
-		mtxQueueInput.unlock();
 		idxInputImage++;
 	}
 	bReading = false;
@@ -161,10 +165,10 @@ void videoWrite(const char* save_path,int cpuid)
 		// queueOutput 就尝试写
 		if (queueOutput.size() > 0) {
 			mtxQueueOutput.lock();
- 			imageout_idx res_pair = queueOutput.front();
+ 			track_result_group_t res_pair = queueOutput.front();
 			queueOutput.pop();
 			mtxQueueOutput.unlock();
-			draw_image(res_pair.img, res_pair.dets);
+			draw_image(res_pair.img, res_pair.results);
 			vid_writer.write(res_pair.img); // Save-video
 		}
 		// 最后一帧检测/追踪结束 bWriting置为false 此时如果queueOutput仍存在元素 继续写
@@ -184,10 +188,10 @@ cv::Scalar colorArray[2]={
 	cv::Scalar(139,0,0,255),
 	cv::Scalar(139,0,139,255),
 };
-int draw_image(cv::Mat &img,detect_result_group_t detect_result_group)
+int draw_image(cv::Mat &img,std::vector<DetectBox> &track_results)
 {
 	char text[256];
-    for (auto det_result : detect_result_group.results)
+    for (auto det_result : track_results)
     {
         // sprintf(text, "%s %.1f%%", det_result.name, det_result.confidence * 100);
 		sprintf(text, "ID:%d", (int)det_result.trackID);
@@ -195,7 +199,7 @@ int draw_image(cv::Mat &img,detect_result_group_t detect_result_group)
         int y1 = det_result.y1;
         int x2 = det_result.x2;
         int y2 = det_result.y2;
-		int class_id = det_result.classID;
+		int class_id = det_result.trackID;
         rectangle(img, cv::Point(x1, y1), cv::Point(x2, y2), colorArray[class_id%10], 3);
         putText(img, text, cv::Point(x1, y1 - 12), 1, 2, cv::Scalar(0, 255, 0, 255));
     }

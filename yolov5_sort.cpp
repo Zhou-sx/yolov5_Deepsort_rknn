@@ -7,7 +7,7 @@
 
 #include "common.h"
 #include "detect.h"
-#include "deepsort.h"
+#include "sort.h"
 #include "mytime.h"
 #include "videoio.h"
 
@@ -37,9 +37,9 @@ vector<cv::Mat> imagePool;        // video cache
 mutex mtxQueueInput;        	  // mutex of input queue
 queue<input_image> queueInput;    // input queue 
 mutex mtxQueueDetOut;
-queue<imageout_idx> queueDetOut;  // output queue
+queue<detect_result_group_t> queueDetOut;  // output queue
 mutex mtxQueueOutput;
-queue<imageout_idx> queueOutput;  // output queue 目标追踪输出队列
+queue<track_result_group_t> queueOutput;  // output queue 目标追踪输出队列
 
 
 
@@ -50,7 +50,7 @@ void videoWrite(const char* save_path,int cpuid);
 int main() {
     class Yolo detect1(YOLO_MODEL_PATH.c_str(), 4, RKNN_NPU_CORE_0, 1, 3);
     class Yolo detect2(YOLO_MODEL_PATH.c_str(), 5, RKNN_NPU_CORE_1, 1, 3);
-    class DeepSort track(SORT_MODEL_PATH, 1, 512, 6, RKNN_NPU_CORE_2);
+    class Sort track1(1);
 
     const int thread_num = 5;
     std::array<thread, thread_num> threads;
@@ -58,7 +58,7 @@ int main() {
     threads = {   
                   thread(&Yolo::detect_process, &detect1),  // 类成员函数特殊写法
                   thread(&Yolo::detect_process, &detect2),
-                  thread(&DeepSort::track_process, &track),
+                  thread(&Sort::track_process, &track1),
                   thread(videoResize, 7),
                   thread(videoWrite, VIDEO_SAVEPATH.c_str(), 0),
               };

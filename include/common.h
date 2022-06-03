@@ -55,16 +55,12 @@ typedef struct _detect_result_group_t
 {
     int id;
     int count;
+    cv::Mat img;
     std::vector<DetectBox> results;
 } detect_result_group_t;
 
-/*
-    某一帧的所有合理预测结果 + 图片
-    img：     背景图
-    dets：    检测结果结构体数组
-*/ 
-struct imageout_idx
+typedef struct _track_result_group_t
 {
-	cv::Mat img; 
-	detect_result_group_t dets;
-};
+    cv::Mat img;
+    std::vector<DetectBox> results;
+} track_result_group_t;

@@ -435,7 +435,7 @@ int post_process_fp(float *input0, float *input1, float *input2, int model_in_h,
 
         init = 0;
     }
-    memset(group, 0, sizeof(detect_result_group_t));
+    
 
     std::vector<float> filterBoxes;
     std::vector<float> boxesScore;
@@ -501,6 +501,10 @@ int post_process_fp(float *input0, float *input1, float *input2, int model_in_h,
         detbox.y1 = (int)((clamp(y1, 0, model_in_h) - h_offset) / resize_scale);
         detbox.x2 = (int)((clamp(x2, 0, model_in_w) - w_offset) / resize_scale);
         detbox.y2 = (int)((clamp(y2, 0, model_in_h)  - h_offset) / resize_scale);
+        detbox.bbox.x = detbox.x1;
+        detbox.bbox.y = detbox.y1;
+        detbox.bbox.width = detbox.x2-detbox.x1;
+        detbox.bbox.height = detbox.y2-detbox.y1;
         detbox.confidence = boxesScore[i];
         detbox.classID = id;
         char *label = labels[id];

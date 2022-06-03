@@ -1,4 +1,8 @@
 #include "opencv2/videoio/videoio_c.h"
+#ifndef BOX_H
+#include "box.h"
+#define BOX_H
+#endif // BOX_H
 
 struct _detect_result_group_t;  // 前置声明
 
@@ -16,4 +20,4 @@ void videoRead(const char* video_name, int cpuid);
 void videoResize(int cpuid);
 void get_max_scale(int , int , int , int , double &, double &);
 void videoWrite(const char* save_path,int cpuid) ;
-int draw_image(cv::Mat& , struct _detect_result_group_t);
+int draw_image(cv::Mat& , std::vector<DetectBox> &track_results);

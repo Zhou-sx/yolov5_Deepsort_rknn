@@ -18,7 +18,7 @@ extern int idxOutputImage;            // next frame index to be output 保证que
 extern mutex mtxQueueInput;               
 extern queue<input_image> queueInput;  // input queue
 extern mutex mtxQueueDetOut;
-extern queue<imageout_idx> queueDetOut;// Det output queue
+extern queue<detect_result_group_t> queueDetOut;// Det output queue
 
 int Yolo::detect_process(){
 	
@@ -100,6 +100,7 @@ int Yolo::detect_process(){
 		post_process_fp((float *)_output_buff[0], (float *)_output_buff[1], (float *)_output_buff[2],
 		 				NET_INPUTHEIGHT, NET_INPUTWIDTH, 0, 0, resize_scale, BOX_THRESH, NMS_THRESH, &detect_result_group);
 		detect_result_group.id = input.index;
+		detect_result_group.img = input.img_src;
 		// double end_time = what_time_is_it_now();
 		// cost_time = end_time - start_time;
 		npu_performance = cal_NPU_performance(history_time, sum_time, cost_time / 1.0e3);
@@ -107,11 +108,8 @@ int Yolo::detect_process(){
 		while(detect_result_group.id != idxOutputImage){
 			usleep(1000);
 		}
-		imageout_idx res_pair;
-		res_pair.img = input.img_src;
-		res_pair.dets = detect_result_group;
 		mtxQueueDetOut.lock();
-		queueDetOut.push(res_pair);
+		queueDetOut.push(detect_result_group);
 		printf("%f NPU(%d) performance : %f (%d)\n", what_time_is_it_now()/1000, _cpu_id, npu_performance, detect_result_group.id);
 		// draw_image(input.img_src, post_do.scale, nms_res, nboxes_left, 0.3);
 		idxOutputImage = idxOutputImage + 1;
