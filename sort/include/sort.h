@@ -9,7 +9,6 @@ public:
     Sort(int);
     ~Sort();
 
-    void get_color();
     int track_process();
 
 private:

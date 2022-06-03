@@ -91,23 +91,18 @@ void videoResize(int cpuid){
 			break;
 		}
 		cv::Mat img_src = imagePool[idxInputImage];
+		cv::Mat img_pad = cv::Mat(IMG_PAD, IMG_PAD, CV_8UC3);
+		memcpy(img_pad.data, img_src.data, IMG_WIDTH*IMG_HEIGHT*IMG_CHANNEL);
 		if (add_head){
 			// adaptive head
-			cv::Mat img_pad = cv::Mat(IMG_PAD, IMG_PAD, CV_8UC3);
-			memcpy(img_pad.data, img_src.data, IMG_WIDTH*IMG_HEIGHT*IMG_CHANNEL);
-			mtxQueueInput.lock();
-			queueInput.push(input_image(idxInputImage, img_src, img_pad));
-			mtxQueueInput.unlock();
 		}
 		else{
 			// rga resize
-			cv::Mat img_resz = cv::Mat(NET_INPUTHEIGHT, NET_INPUTWIDTH, CV_8UC3);
-			pre_do.resize(img_src, img_resz);
-			mtxQueueInput.lock();
-			queueInput.push(input_image(idxInputImage, img_src, img_resz));
-			mtxQueueInput.unlock();
+			pre_do.resize(img_pad, img_pad);
 		}
-
+		mtxQueueInput.lock();
+		queueInput.push(input_image(idxInputImage, img_src, img_pad));
+		mtxQueueInput.unlock();
 		idxInputImage++;
 	}
 	bReading = false;
@@ -188,6 +183,13 @@ cv::Scalar colorArray[2]={
 	cv::Scalar(139,0,0,255),
 	cv::Scalar(139,0,139,255),
 };
+
+cv::Scalar get_color(int idx)
+{
+	idx += 3;
+	return cv::Scalar(37 * idx % 255, 17 * idx % 255, 29 * idx % 255);
+}
+
 int draw_image(cv::Mat &img,std::vector<DetectBox> &track_results)
 {
 	char text[256];
@@ -199,8 +201,8 @@ int draw_image(cv::Mat &img,std::vector<DetectBox> &track_results)
         int y1 = det_result.y1;
         int x2 = det_result.x2;
         int y2 = det_result.y2;
-		int class_id = det_result.trackID;
-        rectangle(img, cv::Point(x1, y1), cv::Point(x2, y2), colorArray[class_id%10], 3);
+		cv::Scalar scalar = get_color(det_result.trackID);
+        rectangle(img, cv::Point(x1, y1), cv::Point(x2, y2), scalar, 3);
         putText(img, text, cv::Point(x1, y1 - 12), 1, 2, cv::Scalar(0, 255, 0, 255));
     }
 	// imwrite("./display.jpg", img);

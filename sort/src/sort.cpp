@@ -15,18 +15,10 @@ extern double end_time;                  // 整个视频追踪结束
 
 Sort::Sort(int){
 	KalmanTracker::kf_count = 0;
-	get_color();
 }
 
 Sort::~Sort(){
 
-}
-
-void Sort::get_color(){
-	// 随机生成颜色
-	cv::RNG rng(0xFFFFFFFF); //RNG类是opencv里C++的随机数产生器
-	for (int i = 0; i < CNUM; i++)
-		rng.fill(_randColor[i], RNG::UNIFORM, 0, 256);  // randColor类成员变量
 }
 
 
@@ -203,7 +195,6 @@ int Sort::track_process()
 		track_result_group_t track_result_group;
 		track_result_group.img = queueDetOut.front().img;
 		track_result_group.results = frameTrackingResult;
-		printf("%d\n", frameTrackingResult.size());
 		queueOutput.push(track_result_group);
 		queueDetOut.pop();
 	}

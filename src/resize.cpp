@@ -35,7 +35,8 @@ void PreResize::resize(cv::Mat &img, cv::Mat &_img)
         printf("%d, check error! %s", __LINE__, imStrError((IM_STATUS)ret));
         exit(-1);
     }
-	memcpy(_img.data, resize_buf, input_height * input_width * input_channel);
+    _img = cv::Mat(cv::Size(input_width, input_height), CV_8UC3, resize_buf);
     free(resize_buf);
-	// cv::imwrite("resize_input.jpg", _img);
+	// memcpy(_img.data, resize_buf, input_height * input_width * input_channel);
+    // free(resize_buf);
 }
