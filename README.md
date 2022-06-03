@@ -2,7 +2,9 @@
 
 [![standard-readme compliant](https://img.shields.io/badge/readme%20style-standard-brightgreen.svg?style=flat-square)](https://github.com/RichardLitt/standard-readme)
 
-Yolov5_DeepSORT_rknn是基于瑞芯微Rockchip Neural Network(RKNN)开发的目标跟踪部署仓库，除了DeepSORT还支持SORT算法，可以根据不同的嵌入式平台选择合适的跟踪算法。本仓库中的DeepSORT在Rk3588上测试通过，SORT在Rk3588和Rk3399Pro上都可运行。
+Yolov5_DeepSORT_rknn是基于瑞芯微Rockchip Neural Network(RKNN)开发的目标跟踪部署仓库，除了DeepSORT还支持SORT算法，可以根据不同的嵌入式平台选择合适的跟踪算法。本仓库中的DeepSORT在Rk3588上测试通过，SORT和ByteTrack应该在Rk3588和Rk3399Pro上都可运行。
+
+下面是我们的演示视频 具有强烈的抖动，进一步提高目标检测模型精度并且在视频无抖动情况下追踪性能应该会很Nice。
 
 <div align="center">
   <img src="https://github.com/Zhou-sx/yolov5_Deepsort_rknn/blob/deepsort/detect.gif" width="45%" />&emsp; &emsp;<img src="https://github.com/Zhou-sx/yolov5_Deepsort_rknn/blob/deepsort/deepsort.gif" width="45%" />
@@ -11,11 +13,22 @@ Yolov5_DeepSORT_rknn是基于瑞芯微Rockchip Neural Network(RKNN)开发的目�
 	&emsp;&emsp;&emsp;&emsp;&emsp;&emsp;&emsp;&emsp;
 	&emsp;&emsp;&emsp;&emsp;&emsp;&emsp;&emsp;&emsp;
 	&emsp;&emsp;&emsp;&emsp;&emsp;&emsp;&emsp;&emsp;
-  <font size=5>Track</font>
+  <font size=5>DeepSORT</font>
   <br/>
 </div>
 
-DeepSORT率先上线！SORT请稍等。除了这两个算法之外，可能还会更新其他SOTA跟踪算法，多多关注~！
+<div align="center">
+  <img src="https://github.com/Zhou-sx/yolov5_Deepsort_rknn/blob/deepsort/SORT.gif" width="45%" />&emsp; &emsp;<img src="https://github.com/Zhou-sx/yolov5_Deepsort_rknn/blob/deepsort/Bytetrack.gif" width="45%" />
+  <br/>
+  <font size=5>SORT</font>
+	&emsp;&emsp;&emsp;&emsp;&emsp;&emsp;&emsp;&emsp;
+	&emsp;&emsp;&emsp;&emsp;&emsp;&emsp;&emsp;&emsp;
+	&emsp;&emsp;&emsp;&emsp;&emsp;&emsp;&emsp;&emsp;
+  <font size=5>Bytetrack</font>
+  <br/>
+</div>
+
+DeepSORT、SORT和ByteTrack已经上线，放在三个分支里！除了这三个算法之外，可能还会更新其他SOTA跟踪算法，多多关注~！
 
 我是野生程序猿，如果在代码编写上存在不规范的情况，请多多见谅。
 
@@ -122,13 +135,13 @@ DeepSORT率先上线！SORT请稍等。除了这两个算法之外，可能还�
 
 + Ours
 
-  DeepSORT的ReID网络单次推理耗时约3ms，但是由于每个检测框都需要推理一次网络故受目标个数影响很大。根据我之前在Rk3399Pro上的部署经验知SORT受目标个数影响小一些且耗时很短，先放上一个预估值。
+  DeepSORT的ReID网络单次推理耗时约3ms，但是由于每个检测框都需要推理一次网络故受目标个数影响很大。SORT和ByteTrack由于没有ReID网络，在目标不是很多的情况下跟踪时间约等于目标检测，但是ID切换现象会更明显更严重一些。
   
-| platform（ms）          | yolov5s-relu | yolov5s-relu+Deepsort |yolov5s-relu+Sort   |
-| :-------------------------: | :--: | :--: | :--: |
-| rk3588 - u8(single core)    | 24.58|   -  |   -  |
-| rk3588 - u8(double core)    | 13.13| 33.24(infulenced)|  15(predict)  |
-| rk3399Pro - u8(single core) |   -  |   -  |   -  |
+| platform（ms）          | yolov5s-relu | yolov5s-relu+Deepsort |yolov5s-relu+Sort   |yolov5s-relu+ByteTrack   |
+| :-------------------------: | :--: | :--: | :--:  | :--: |
+| rk3588 - u8(single core)    | 24 |   -  |   -   |   -  |
+| rk3588 - u8(double core)    | 12 | 33.24(infulenced)| 12 | 12 |
+| rk3399Pro - u8(single core) |   -  |   -  |   -   |   -  |
 
 ## 参考仓库
 
