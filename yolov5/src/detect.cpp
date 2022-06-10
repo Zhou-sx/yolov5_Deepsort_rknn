@@ -112,10 +112,10 @@ int Yolo::detect_process(){
 		res_pair.dets = detect_result_group;
 		mtxQueueDetOut.lock();
 		queueDetOut.push(res_pair);
+		mtxQueueDetOut.unlock();
 		printf("%f NPU(%d) performance : %f (%d)\n", what_time_is_it_now()/1000, _cpu_id, npu_performance, detect_result_group.id);
 		// draw_image(input.img_src, post_do.scale, nms_res, nboxes_left, 0.3);
 		idxOutputImage = idxOutputImage + 1;
-		mtxQueueDetOut.unlock();
 		if(input.index == video_probs.Frame_cnt-1){
 			break; // 不加也可 queueInput.empty() + breading可以跳出
 		}

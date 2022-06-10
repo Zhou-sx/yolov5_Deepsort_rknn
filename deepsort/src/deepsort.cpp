@@ -15,6 +15,9 @@ extern bool bDetecting;                  // 目标检测进程状态
 extern bool bTracking;                   // 目标追踪进程状态               
 extern double end_time;                  // 整个视频追踪结束
 
+extern mutex mtxQueueOutput;
+extern mutex mtxQueueDetOut;
+
 DeepSort::DeepSort(std::string modelPath, int batchSize, int featureDim, int cpu_id, rknn_core_mask npu_id) {
     this->npu_id = npu_id;
     this->cpu_id = cpu_id;
@@ -119,9 +122,13 @@ int DeepSort::track_process(){
 		}
 		
         sort(queueDetOut.front().img , queueDetOut.front().dets.results);  // 会更新 dets.results
+        mtxQueueOutput.lock();
         queueOutput.push(queueDetOut.front());
+        mtxQueueOutput.unlock();
         // showDetection(queueDetOut.front().img, queueDetOut.front().dets.results);
+        mtxQueueDetOut.lock();
         queueDetOut.pop();
+        mtxQueueDetOut.unlock();
     }
     cout << "Track is over." << endl;
     return 0;
