@@ -2,7 +2,7 @@
 
 [![standard-readme compliant](https://img.shields.io/badge/readme%20style-standard-brightgreen.svg?style=flat-square)](https://github.com/RichardLitt/standard-readme)
 
-Yolov5_DeepSORT_rknn是基于瑞芯微Rockchip Neural Network(RKNN)开发的目标跟踪部署仓库，除了DeepSORT还支持SORT算法，可以根据不同的嵌入式平台选择合适的跟踪算法。本仓库中的DeepSORT在Rk3588上测试通过，SORT在Rk3588和Rk3399Pro上都可运行。
+Yolov5_DeepSORT_rknn是基于瑞芯微Rockchip Neural Network(RKNN)开发的目标跟踪部署仓库，除了DeepSORT还支持SORT算法，可以根据不同的嵌入式平台选择合适的跟踪算法。本仓库中的DeepSORT在Rk3588上测试通过，SORT在Rk3588和Rk3399Pro上都可运行。（不好意思 因为使用了Rknn-toolkit2所以rk3399pro应该不支持 需要换掉rknn_fp.cpp相关接口）
 
 <div align="center">
   <img src="https://github.com/Zhou-sx/yolov5_Deepsort_rknn/blob/deepsort/detect.gif" width="45%" />&emsp; &emsp;<img src="https://github.com/Zhou-sx/yolov5_Deepsort_rknn/blob/deepsort/deepsort.gif" width="45%" />
