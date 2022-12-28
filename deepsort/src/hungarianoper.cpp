@@ -6,13 +6,16 @@ Eigen::Matrix<float, -1, 2, Eigen::RowMajor> HungarianOper::Solve(const DYNAMICM
     Matrix<double> matrix(rows, cols);
     for (int row = 0; row < rows; row++) {
         for (int col = 0; col < cols; col++) {
-            matrix(row, col) = cost_matrix(row, col);
+            if (cost_matrix(row, col) != cost_matrix(row, col)) {  // nan set to const
+                std::cout << "nan occured! \n";
+                matrix(row, col) = 0.0;
+            }
+            else matrix(row, col) = cost_matrix(row, col);
         }
     }
     //Munkres get matrix;
     Munkres<double> m;
     m.solve(matrix);
-
     //
     std::vector<std::pair<int, int>> pairs;
     for (int row = 0; row < rows; row++) {

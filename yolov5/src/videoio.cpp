@@ -37,7 +37,7 @@ void videoRead(const char *video_name, int cpuid)
 	if (pthread_setaffinity_np(pthread_self(), sizeof(mask), &mask) < 0)
 		cerr << "set thread affinity failed" << endl;
 
-	printf("Bind videoTransClient process to CPU %d\n", cpuid); 
+	printf("Bind videoReadClient process to CPU %d\n", cpuid); 
 
 	cv::VideoCapture video;
 	if (!video.open(video_name)) {
@@ -64,6 +64,7 @@ void videoRead(const char *video_name, int cpuid)
 		imagePool.emplace_back(img_src);
 	}
 	cout << "VideoRead is over." << endl;
+	cout << "Video Total Length: " << imagePool.size() << "\n";
 }
 
 /*---------------------------------------------------------
@@ -72,6 +73,15 @@ void videoRead(const char *video_name, int cpuid)
 ----------------------------------------------------------*/
 void videoResize(int cpuid){
 	// int initialization_finished = 1;
+	rga_buffer_t src;
+	rga_buffer_t dst;
+	im_rect src_rect;
+	im_rect dst_rect;
+	memset(&src_rect, 0, sizeof(src_rect));
+	memset(&dst_rect, 0, sizeof(dst_rect));
+	memset(&src, 0, sizeof(src));
+	memset(&dst, 0, sizeof(dst));
+
 	cpu_set_t mask;
 
 	CPU_ZERO(&mask);
@@ -84,6 +94,7 @@ void videoResize(int cpuid){
 
 	PreResize pre_do(NET_INPUTHEIGHT, NET_INPUTWIDTH, NET_INPUTCHANNEL);
 	bReading = true;//读写状态标记
+	cout << "total length of video: " << video_probs.Frame_cnt << "\n";
 	while (1) 
 	{  
 		// 如果读不到图片 或者 bReading 不在读取状态则跳出
@@ -91,14 +102,22 @@ void videoResize(int cpuid){
 			break;
 		}
 		cv::Mat img_src = imagePool[idxInputImage];
-		cv::Mat img_pad = cv::Mat(IMG_PAD, IMG_PAD, CV_8UC3);
-		memcpy(img_pad.data, img_src.data, IMG_WIDTH*IMG_HEIGHT*IMG_CHANNEL);
+		cv::Mat img = img_src.clone();
+		cv::cvtColor(img_src, img, cv::COLOR_BGR2RGB);
+
+		cv::Mat img_pad;
+		resize(img, img_pad, cv::Size(640,640), 0, 0, 1);
+
 		if (add_head){
 			// adaptive head
 		}
 		else{
 			// rga resize
-			pre_do.resize(img_pad, img_pad);
+			
+			void *resize_buf = malloc(NET_INPUTHEIGHT * NET_INPUTWIDTH * NET_INPUTCHANNEL);
+			src = wrapbuffer_virtualaddr((void *)img.data, img.cols, img.rows, RK_FORMAT_RGB_888);
+			dst = wrapbuffer_virtualaddr((void *)resize_buf, NET_INPUTWIDTH, NET_INPUTHEIGHT, RK_FORMAT_RGB_888);
+			
 		}
 
 		mtxQueueInput.lock();
@@ -108,6 +127,7 @@ void videoResize(int cpuid){
 	}
 	bReading = false;
 	cout << "VideoResize is over." << endl;
+	cout << "Resize Video Total Length: " << queueInput.size() << "\n";
 }
 
  /*
@@ -147,17 +167,19 @@ void videoWrite(const char* save_path,int cpuid)
 	cv::VideoWriter vid_writer;
     while(1)
     {
-       if(queueInput.size() > 0)
-       {
+		// cout << "checkpoint! " << queueInput.size() << "\n";
+    	if(queueInput.size() > 0)
+    	{
             // cout << video_probs.Video_width << " " << video_probs.Video_height << endl;
             vid_writer  = cv::VideoWriter(save_path, video_probs.Video_fourcc, video_probs.Fps, 
 										  cv::Size(video_probs.Video_width, video_probs.Video_height));
             break;
-       }
+    	}
     }
 
 	while (1) 
 	{  
+		// if (queueOutput.size()) cout << "checkpoint in VideoWriter: " << queueOutput.size() << "\n";
 		// queueOutput 就尝试写
 		if (queueOutput.size() > 0) {
 			mtxQueueOutput.lock();

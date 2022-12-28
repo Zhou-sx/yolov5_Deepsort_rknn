@@ -54,12 +54,13 @@ int Yolo::detect_process(){
 
 	while (1)
 	{
+		// cout << "Entering detect process" << queueInput.size() << "\n";
 		//Load image
 		input_image input;
 		mtxQueueInput.lock();
 		//queueInput不为空则进入NPU_process
 		if (queueInput.empty()) {
-			//printf("waiting queueInput .........\n", ret);
+			// printf("waiting queueInput .........\n");
 			mtxQueueInput.unlock();
 			usleep(1000);
 			// 如果queue处于空且 bReading不在可读取状态则销毁 跳出
@@ -82,11 +83,13 @@ int Yolo::detect_process(){
 			start_time = what_time_is_it_now();
 		} 
 		cost_time = inference(input.img_pad.data);
+		// cout << "cost time: " << cost_time << "\n";
 		if(cost_time == -1){
 			printf("NPU inference Error");
 		}
 		
 		detect_result_group_t detect_result_group;
+		
 		std::vector<float> out_scales;
 		std::vector<int32_t> out_zps;
 		for (int i = 0; i < _n_output; ++i)
@@ -97,8 +100,10 @@ int Yolo::detect_process(){
 		// if valid nbox is few, cost time can be ignored.
 		// 补边左上角对齐 因此 w_pad = h_pad = 0
 		// double start_time = what_time_is_it_now();
+		
 		post_process_fp((float *)_output_buff[0], (float *)_output_buff[1], (float *)_output_buff[2],
 		 				NET_INPUTHEIGHT, NET_INPUTWIDTH, 0, 0, resize_scale, BOX_THRESH, NMS_THRESH, &detect_result_group);
+		// cout << "post process done\n";
 		detect_result_group.id = input.index;
 		// double end_time = what_time_is_it_now();
 		// cost_time = end_time - start_time;

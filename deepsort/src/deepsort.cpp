@@ -53,6 +53,7 @@ void DeepSort::sort(cv::Mat& frame, vector<DetectBox>& dets) {
         detections.push_back(d);
         clsConf.push_back(CLSCONF((int)i.classID, i.confidence));
     }
+    
     result.clear();
     results.clear();
     if (detections.size() > 0) {
@@ -95,7 +96,9 @@ void DeepSort::sort(cv::Mat& frame, DETECTIONSV2& detectionsv2) {
     bool flag = featureExtractor->getRectsFeature(frame, detections);
     if (flag) {
         objTracker->predict();
-        objTracker->update(detectionsv2);
+        // std::cout << "In: \n"; 
+        objTracker->update(detectionsv2);     
+        // std::cout << "Out: \n";    
         result.clear();
         results.clear();
         for (Track& track : objTracker->tracks) {
@@ -110,6 +113,8 @@ void DeepSort::sort(cv::Mat& frame, DETECTIONSV2& detectionsv2) {
 int DeepSort::track_process(){
     while (1) 
 	{
+        // cout << "Entering track process\n";
+        // cout << "In deepsort: " << queueDetOut.size() << "\n";
 		if (queueDetOut.empty()) {
             if(!bDetecting){
                 // queueDetOut为空并且 bDetecting标志已经全部检测完成 说明追踪完毕了
