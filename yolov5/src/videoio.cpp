@@ -214,9 +214,9 @@ int draw_image(cv::Mat &img,detect_result_group_t detect_result_group)
         // sprintf(text, "%s %.1f%%", det_result.name, det_result.confidence * 100);
 		sprintf(text, "ID:%d", (int)det_result.trackID);
         int x1 = det_result.x1;
-        int y1 = det_result.y1;
+        int y1 = det_result.y1 / IMG_WIDTH * IMG_HEIGHT;
         int x2 = det_result.x2;
-        int y2 = det_result.y2;
+        int y2 = det_result.y2 / IMG_WIDTH * IMG_HEIGHT;
 		int class_id = det_result.classID;
         rectangle(img, cv::Point(x1, y1), cv::Point(x2, y2), colorArray[class_id%10], 3);
         putText(img, text, cv::Point(x1, y1 - 12), 1, 2, cv::Scalar(0, 255, 0, 255));
