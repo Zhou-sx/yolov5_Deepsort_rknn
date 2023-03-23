@@ -2,6 +2,8 @@
 #include <string>
 #include <iostream>
 
+#include <thread>
+
 #include "deepsort.h"
 #include "common.h"
 #include "mytime.h"
@@ -32,8 +34,14 @@ DeepSort::DeepSort(std::string modelPath, int batchSize, int featureDim, int cpu
 
 void DeepSort::init() {
     objTracker = new tracker(maxCosineDist, maxBudget);
-    featureExtractor = new FeatureTensor(enginePath.c_str(), cpu_id, npu_id, 1, 1);
-    featureExtractor->init(imgShape, featureDim, NET_INPUTCHANNEL);
+
+    // two Re-ID networks, share same CPU and NPU
+    featureExtractor1 = new FeatureTensor(enginePath.c_str(), cpu_id, npu_id, 1, 1);
+    featureExtractor1->init(imgShape, featureDim, NET_INPUTCHANNEL);
+
+    featureExtractor2 = new FeatureTensor(enginePath.c_str(), cpu_id, npu_id, 1, 1);
+    featureExtractor2->init(imgShape, featureDim, NET_INPUTCHANNEL);
+
 }
 
 DeepSort::~DeepSort() {
@@ -42,10 +50,12 @@ DeepSort::~DeepSort() {
 
 void DeepSort::sort(cv::Mat& frame, vector<DetectBox>& dets) {
     // preprocess Mat -> DETECTION
-    DETECTIONS detections;
+    DETECTIONS detections;  // DETECTIONS: std::vector<DETECTION_ROW> in model.hpp
     vector<CLSCONF> clsConf;
     
-    for (DetectBox i : dets) {
+    // read every detections in current frame and 
+    // store them in detections(bbox) and clsConf(conf scores)
+    for (DetectBox i : dets) {  
         DETECTBOX box(i.x1, i.y1, i.x2-i.x1, i.y2-i.y1);
         DETECTION_ROW d;
         d.tlwh = box;
@@ -54,11 +64,11 @@ void DeepSort::sort(cv::Mat& frame, vector<DetectBox>& dets) {
         clsConf.push_back(CLSCONF((int)i.classID, i.confidence));
     }
     
-    result.clear();
-    results.clear();
+    result.clear();  // result: vector<pair<int, DETECTBOX>>
+    results.clear();  // results: vector<pair<CLSCONF, DETECTBOX>>
     if (detections.size() > 0) {
         DETECTIONSV2 detectionsv2 = make_pair(clsConf, detections);
-        sort(frame, detectionsv2);
+        sort(frame, detectionsv2);  // sort
     }
     // postprocess DETECTION -> Mat
     dets.clear();
@@ -77,7 +87,7 @@ void DeepSort::sort(cv::Mat& frame, vector<DetectBox>& dets) {
 
 
 void DeepSort::sort(cv::Mat& frame, DETECTIONS& detections) {
-    bool flag = featureExtractor->getRectsFeature(frame, detections);
+    bool flag = featureExtractor1->getRectsFeature(frame, detections);
     if (flag) {
         objTracker->predict();
         objTracker->update(detections);
@@ -90,11 +100,97 @@ void DeepSort::sort(cv::Mat& frame, DETECTIONS& detections) {
     }
 }
 
+void DeepSort::sort_interval(cv::Mat& frame, vector<DetectBox>& dets) {
+    /*
+    If frame_id % this->track_interval != 0, there is no new detections
+    so only predict the tracks using Kalman
+    */
+    if (!dets.empty()) cout << "Error occured! \n";
+
+    result.clear();
+    results.clear();
+    objTracker->predict();  // Kalman predict
+
+    // update result and results
+    // cout << "---------" << objTracker->tracks.size() << "\n";
+    for (Track& track : objTracker->tracks) {
+            // if (!track.is_confirmed() || track.time_since_update > 1)
+            if (!track.is_confirmed() || track.time_since_update > this->track_interval + 1)
+                continue;
+            result.push_back(make_pair(track.track_id, track.to_tlwh()));
+            results.push_back(make_pair(CLSCONF(track.cls, track.conf) ,track.to_tlwh()));
+    }
+    dets.clear();
+    for (auto r : result) {
+        DETECTBOX i = r.second;
+        DetectBox b(i(0), i(1), i(2)+i(0), i(3)+i(1), 1.);
+        b.trackID = (float)r.first;
+        dets.push_back(b);
+    }
+    for (int i = 0; i < results.size(); ++i) {
+        CLSCONF c = results[i].first;
+        dets[i].classID = c.cls;
+        dets[i].confidence = c.conf;
+    }
+
+}
+
 void DeepSort::sort(cv::Mat& frame, DETECTIONSV2& detectionsv2) {
     std::vector<CLSCONF>& clsConf = detectionsv2.first;
-    DETECTIONS& detections = detectionsv2.second;
-    bool flag = featureExtractor->getRectsFeature(frame, detections);
-    if (flag) {
+    DETECTIONS& detections = detectionsv2.second;  // std::vector<DETECTION_ROW>
+
+    int numOfDetections = detections.size();
+    bool flag1 = true, flag2 = true;
+    // if (numOfDetections < 2) 
+    if (true){
+        // few objects, use single Re-ID 
+        double timeBeforeReID = what_time_is_it_now();
+        flag1 = featureExtractor1->getRectsFeature(frame, detections);
+        double timeAfterReID = what_time_is_it_now();
+
+        cout << "--------Time cost in ReID: " << timeAfterReID - timeBeforeReID << "\n";
+        flag2 = true;
+    }
+    else {
+        DETECTIONS detectionsPart1, detectionsPart2;
+        int border = numOfDetections >> 1;
+        auto start = detections.begin(), end = detections.end();  // iterator
+
+        double timeBeforeAssign = what_time_is_it_now();
+        detectionsPart1.assign(start, start + border);
+        detectionsPart2.assign(start + border, end);
+        double timeAfterAssign = what_time_is_it_now();
+
+        cout << "--------Time cost in assign: " << timeAfterAssign - timeBeforeAssign << "\n";
+
+        // NOTE: convert pointer or set global variables
+        // inference separately
+        double timeBeforeReID = what_time_is_it_now();
+        thread reID1Thread1 (&FeatureTensor::getRectsFeature, featureExtractor1, std::ref(frame), std::ref(detectionsPart1));
+        thread reID1Thread2 (&FeatureTensor::getRectsFeature, featureExtractor2, std::ref(frame), std::ref(detectionsPart2));
+
+        reID1Thread1.join(); reID1Thread2.join();
+
+        double timeAfterReID = what_time_is_it_now();
+
+        cout << "--------Time cost in ReID: " << timeAfterReID - timeBeforeReID << "\n";
+
+        // copy new feature to origin detections
+
+        double timeBeforeUpdateFeatures = what_time_is_it_now();
+        for (int idx = 0; flag1 && flag2 && idx < numOfDetections; idx ++) {
+            if (idx < border)
+                detections[idx].updateFeature(detectionsPart1[idx].feature);
+            else 
+                detections[idx].updateFeature(detectionsPart2[idx - border].feature);
+        }
+        double timeAfterUpdateFeatures = what_time_is_it_now();
+        cout << "--------Time cost in update features: " << timeAfterUpdateFeatures - timeBeforeUpdateFeatures << "\n";
+
+    }
+ 
+    // bool flag = featureExtractor->getRectsFeature(frame, detections);
+    if (flag1 && flag2) {
         objTracker->predict();
         // std::cout << "In: \n"; 
         objTracker->update(detectionsv2);     
@@ -108,13 +204,13 @@ void DeepSort::sort(cv::Mat& frame, DETECTIONSV2& detectionsv2) {
             results.push_back(make_pair(CLSCONF(track.cls, track.conf) ,track.to_tlwh()));
         }
     }
+    else cout << "Re-ID1 Error? " << flag1 << " Re-ID2 Error? " << flag2 << "\n";
 }
 
 int DeepSort::track_process(){
     while (1) 
 	{
-        // cout << "Entering track process\n";
-        // cout << "In deepsort: " << queueDetOut.size() << "\n";
+        
 		if (queueDetOut.empty()) {
             if(!bDetecting){
                 // queueDetOut为空并且 bDetecting标志已经全部检测完成 说明追踪完毕了
@@ -125,9 +221,17 @@ int DeepSort::track_process(){
 			usleep(1000);
             continue;
 		}
+
+        // get frame index of queueDetOut.front
+        int curFrameIdx = queueDetOut.front().dets.id;
+        // cout << "Is id match with result " << (!queueDetOut.front().dets.results.empty() && !(curFrameIdx % 3)) << "\n";
 		
-        sort(queueDetOut.front().img , queueDetOut.front().dets.results);  // 会更新 dets.results
+        if (curFrameIdx < this->track_interval || !(curFrameIdx % this->track_interval))  // have detections
+            sort(queueDetOut.front().img , queueDetOut.front().dets.results);  // 会更新 dets.results
+        else  
+            sort_interval(queueDetOut.front().img , queueDetOut.front().dets.results);
         mtxQueueOutput.lock();
+        // cout << "--------------" << queueDetOut.front().dets.results.size() << "\n";
         queueOutput.push(queueDetOut.front());
         mtxQueueOutput.unlock();
         // showDetection(queueDetOut.front().img, queueDetOut.front().dets.results);

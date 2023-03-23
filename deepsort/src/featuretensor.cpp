@@ -25,12 +25,15 @@ void FeatureTensor::doInference(vector<cv::Mat>& imgMats, DETECTIONS& det) {
 		for (int j = 0; j < featureDim; ++j)
             det[i].feature[j] = output[j];
         npu_performance = cal_NPU_performance(history_time, sum_time, cost_time / 1.0e3);
-        printf("Deepsort: %f NPU(%d) performance : %f\n", what_time_is_it_now()/1000, _cpu_id, npu_performance);
+        // printf("Deepsort: %f NPU(%d) performance : %f\n", what_time_is_it_now()/1000, _cpu_id, npu_performance);
 	}
 }
 
 bool FeatureTensor::getRectsFeature(const cv::Mat& img, DETECTIONS& det) {
     std::vector<cv::Mat> mats;
+    
+    double timeBeforeGetRectsFeature = what_time_is_it_now();
+
     for (auto& dbox : det) {
         cv::Rect rect = cv::Rect(int(dbox.tlwh(0)), int(dbox.tlwh(1)),
                                  int(dbox.tlwh(2)), int(dbox.tlwh(3)));
@@ -60,7 +63,12 @@ bool FeatureTensor::getRectsFeature(const cv::Mat& img, DETECTIONS& det) {
         // pre_do.resize(tempMat, tempMat);  // rga
         mats.push_back(tempMat);
     }
+    
     doInference(mats, det);
+
+    double timeAfterGetRectsFeature = what_time_is_it_now();
+    std::cout << "--------Time cost in getRectsFeature: " << timeAfterGetRectsFeature- timeBeforeGetRectsFeature << "\n";
+
     // std::cout << "in deepsort inference: " << mats.size() << "\n";
     return true;
 }

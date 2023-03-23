@@ -14,14 +14,14 @@
 using namespace std;
 
 bool add_head = false;
-string PROJECT_DIR = "/home/wjp/codes/yolov5_Deepsort_12_28";
+string PROJECT_DIR = "/home/wjp/codes/yolov5_Deepsort_rknn";
 
 
 string YOLO_MODEL_PATH = PROJECT_DIR + "/model/best.rknn";
 string SORT_MODEL_PATH = PROJECT_DIR + "/model/osnet_x0_25_market.rknn";
 
-string VIDEO_PATH = PROJECT_DIR + "/data/M1401.mp4";
-string VIDEO_SAVEPATH = PROJECT_DIR + "/data/M1401_results.mp4";
+string VIDEO_PATH = PROJECT_DIR + "/data/M0201.mp4";
+string VIDEO_SAVEPATH = PROJECT_DIR + "/data/M0201_results.mp4";
 
 /*
 string YOLO_MODEL_PATH = PROJECT_DIR + "/model/best_nofocus_relu.rknn";
@@ -67,6 +67,7 @@ int main() {
     const int thread_num = 5;
     std::array<thread, thread_num> threads;
     videoRead(VIDEO_PATH.c_str(), 7);
+    // used CPU: 0, 4, 5, 6, 7
     threads = {   
                   thread(&Yolo::detect_process, &detect1),  // 类成员函数特殊写法
                   thread(&Yolo::detect_process, &detect2),

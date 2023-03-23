@@ -19,6 +19,7 @@ public:
     DETECTBOX tlwh;
     float confidence;
     FEATURE feature;
+
     DETECTBOX to_xyah() const {
         //(centerx, centery, ration, h)
         DETECTBOX ret = tlwh;
@@ -33,6 +34,11 @@ public:
         ret(0, IDX_X) += ret(0, IDX_W);
         ret(0, IDX_Y) += ret(0, IDX_H);
         return ret;
+    }
+
+    void updateFeature(FEATURE& feature_) {
+        // only update feature
+        this->feature = feature_;  
     }
 };
 
