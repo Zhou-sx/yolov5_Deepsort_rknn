@@ -141,8 +141,7 @@ void DeepSort::sort(cv::Mat& frame, DETECTIONSV2& detectionsv2) {
 
     int numOfDetections = detections.size();
     bool flag1 = true, flag2 = true;
-    // if (numOfDetections < 2) 
-    if (true){
+    if (numOfDetections < 2){
         // few objects, use single Re-ID 
         double timeBeforeReID = what_time_is_it_now();
         flag1 = featureExtractor1->getRectsFeature(frame, detections);
