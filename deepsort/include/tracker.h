@@ -28,7 +28,7 @@ public:
     tracker(/*NearNeighborDisMetric* metric,*/
     		float max_cosine_distance, int nn_budget,
             float max_iou_distance = 0.7,
-            int max_age = 200, int n_init=20);
+            int max_age = 30, int n_init=2);
     void predict();
     void update(const DETECTIONS& detections);
     void update(const DETECTIONSV2& detectionsv2);

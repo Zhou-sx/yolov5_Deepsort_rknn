@@ -14,12 +14,23 @@
 using namespace std;
 
 bool add_head = false;
-string PROJECT_DIR = "/mnt/yolov5-on-rk3588";
+string PROJECT_DIR = "/home/wjp/codes/yolov5_Deepsort_rknn";
+
+
+string YOLO_MODEL_PATH = PROJECT_DIR + "/model/best.rknn";
+string SORT_MODEL_PATH = PROJECT_DIR + "/model/osnet_x0_25_market.rknn";
+
+string VIDEO_PATH = PROJECT_DIR + "/data/M0201.mp4";
+string VIDEO_SAVEPATH = PROJECT_DIR + "/data/M0201_results.mp4";
+
+/*
 string YOLO_MODEL_PATH = PROJECT_DIR + "/model/best_nofocus_relu.rknn";
 string SORT_MODEL_PATH = PROJECT_DIR + "/model/osnet_x0_25_market.rknn";
 
 string VIDEO_PATH = PROJECT_DIR + "/data/DJI_0001_S_cut.mp4";
 string VIDEO_SAVEPATH = PROJECT_DIR + "/data/results.mp4";
+*/
+
 
 // 各任务进行状态序号
 video_property video_probs; // 视频属性类
@@ -48,6 +59,7 @@ void videoResize(int cpuid);
 void videoWrite(const char* save_path,int cpuid);
 
 int main() {
+
     class Yolo detect1(YOLO_MODEL_PATH.c_str(), 4, RKNN_NPU_CORE_0, 1, 3);
     class Yolo detect2(YOLO_MODEL_PATH.c_str(), 5, RKNN_NPU_CORE_1, 1, 3);
     class DeepSort track(SORT_MODEL_PATH, 1, 512, 6, RKNN_NPU_CORE_2);
@@ -55,6 +67,7 @@ int main() {
     const int thread_num = 5;
     std::array<thread, thread_num> threads;
     videoRead(VIDEO_PATH.c_str(), 7);
+    // used CPU: 0, 4, 5, 6, 7
     threads = {   
                   thread(&Yolo::detect_process, &detect1),  // 类成员函数特殊写法
                   thread(&Yolo::detect_process, &detect2),

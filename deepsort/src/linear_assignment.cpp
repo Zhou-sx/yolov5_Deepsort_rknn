@@ -71,11 +71,12 @@ linear_assignment::matching_cascade(
                 track_indices_l.push_back(k);
         }
         if(track_indices_l.size() == 0) continue; //Nothing to match at this level.
-
+        
         TRACHER_MATCHD tmp = min_cost_matching(
                     distance_metric, distance_metric_func,
                     max_distance, tracks, detections, track_indices_l,
                     unmatched_detections);
+        
         unmatched_detections.assign(tmp.unmatched_detections.begin(), tmp.unmatched_detections.end());
         for(size_t i = 0; i < tmp.matches.size(); i++) {
             MATCH_DATA pa = tmp.matches[i];
@@ -127,7 +128,12 @@ linear_assignment::min_cost_matching(tracker *distance_metric,
             if(tmp > max_distance) cost_matrix(i,j) = max_distance + 1e-5;
         }
     }
+    
+    // std::cout << "In: \n"; 
+    // std::cout << cost_matrix << "\n";
     Eigen::Matrix<float, -1, 2, Eigen::RowMajor> indices = HungarianOper::Solve(cost_matrix);
+    // std::cout << "Out: \n";    
+
     res.matches.clear();
     res.unmatched_tracks.clear();
     res.unmatched_detections.clear();

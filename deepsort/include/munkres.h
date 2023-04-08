@@ -54,7 +54,6 @@ public:
 #ifdef DEBUG
         std::cout << "Munkres input: " << m << std::endl;
 #endif
-
         // Copy input matrix
         this->matrix = m;
 
@@ -125,7 +124,6 @@ public:
                 }
             }
         }
-
 #ifdef DEBUG
         std::cout << "Munkres output: " << matrix << std::endl;
 #endif

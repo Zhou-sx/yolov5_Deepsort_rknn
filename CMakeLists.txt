@@ -3,7 +3,7 @@ project(yolov5_deepsort VERSION 0.1.0)
 
 add_subdirectory(deepsort)
 
-set(OpenCV_DIR /home/linaro/workspace/opencv/lib/cmake/opencv4)  # 填入OpenCVConfig.cmake
+set(OpenCV_DIR /home/wjp/opencv-4.6.0/install/lib/cmake/opencv4)  # 填入OpenCVConfig.cmake
 find_package(OpenCV 4 REQUIRED)
 include_directories(${OpenCV_INCLUDE_DIRS})
 

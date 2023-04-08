@@ -17,6 +17,7 @@ public:
 
 public:
     void sort(cv::Mat& frame, vector<DetectBox>& dets);
+    void sort_interval(cv::Mat& frame, vector<DetectBox>& dets);
     int  track_process();
     void showDetection(cv::Mat& img, std::vector<DetectBox>& boxes);
 
@@ -35,11 +36,13 @@ private:
     int maxBudget;
     float maxCosineDist;
 
+    const int track_interval = 1; 
 private:
     vector<RESULT_DATA> result;
     vector<std::pair<CLSCONF, DETECTBOX>> results;
     tracker* objTracker;
-    FeatureTensor* featureExtractor;
+    FeatureTensor* featureExtractor1;
+    FeatureTensor* featureExtractor2;
     rknn_core_mask npu_id;
     int cpu_id;
 };

@@ -22,7 +22,7 @@
 
 #include "decode.h"
 
-#define LABEL_NALE_TXT_PATH "./model/hongwai_2_labels_list.txt"
+#define LABEL_NALE_TXT_PATH "../model/hongwai_2_labels_list.txt"
 
 static char *labels[OBJ_CLASS_NUM];
 
@@ -75,6 +75,7 @@ char *readLine(FILE *fp, char *buffer, int *len)
 int readLines(const char *fileName, char *lines[], int max_line)
 {
     FILE *file = fopen(fileName, "r");
+    std::cout << "Does the file exists? " << (file == NULL) << "\n";
     char *s;
     int i = 0;
     int n = 0;
@@ -91,6 +92,7 @@ int loadLabelName(const char *locationFilename, char *label[])
 {
     printf("loadLabelName %s\n", locationFilename);
     readLines(locationFilename, label, OBJ_CLASS_NUM);
+    std::cout << "load label done!\n";
     return 0;
 }
 
@@ -150,20 +152,25 @@ static int quick_sort_indice_inverse(
     int key_index;
     int low = left;
     int high = right;
+    if (input.size() < 2) return 0;
     if (left < right)
-    {
+    {   
+        
         key_index = indices[left];
         key = input[left];
         while (low < high)
         {
+            
             while (low < high && input[high] <= key)
             {
+                // std::cout << low << " " << high << "\n";
                 high--;
             }
             input[low] = input[high];
             indices[low] = indices[high];
             while (low < high && input[low] >= key)
             {
+                // std::cout << low << " " << high << "\n";
                 low++;
             }
             input[high] = input[low];
@@ -271,6 +278,7 @@ static int process_fp(float *input, int *anchor, int grid_h, int grid_w, int hei
     int validCount = 0;
     int grid_len = grid_h * grid_w;
     float thres_sigmoid = unsigmoid(threshold);
+    
     for (int a = 0; a < 3; a++)
     {
         for (int i = 0; i < grid_h; i++)
@@ -435,6 +443,7 @@ int post_process_fp(float *input0, float *input1, float *input2, int model_in_h,
 
         init = 0;
     }
+    // printf("1______________________________________\n");
     memset(group, 0, sizeof(detect_result_group_t));
 
     std::vector<float> filterBoxes;
@@ -447,6 +456,7 @@ int post_process_fp(float *input0, float *input1, float *input2, int model_in_h,
     validCount0 = process_fp(input0, (int *)anchor0, grid_h0, grid_w0, model_in_h, model_in_w,
                           stride0, filterBoxes, boxesScore, classId, conf_threshold);
 
+    // printf("2______________________________________\n");
     int stride1 = 16;
     int grid_h1 = model_in_h / stride1;
     int grid_w1 = model_in_w / stride1;
@@ -473,16 +483,22 @@ int post_process_fp(float *input0, float *input1, float *input2, int model_in_h,
     {
         indexArray.push_back(i);
     }
-
+    // printf("3______________________________________\n");
+    // filterBoxes.resize(300); classId.resize(300); boxesScore.resize(300); indexArray.resize(300); validCount = 300;
+    // for (int idx = 0; idx < 10; ++idx) std::cout << boxesScore[idx];
     quick_sort_indice_inverse(boxesScore, 0, validCount - 1, indexArray);
+    // printf("4______________________________________\n");
 
     nms(validCount, filterBoxes, indexArray, nms_threshold);
-
+    // printf("5_____________________________________\n");
+    
     int last_count = 0;
     group->count = 0;
     /* box valid detect target */
     for (int i = 0; i < validCount; ++i)
     {
+        // std::cout << "it's " << i << "\n";
+        // std::cout << boxesScore.size() << " " << indexArray.size() << "\n";
 
         if (indexArray[i] == -1 || boxesScore[i] < conf_threshold || last_count >= OBJ_NUMB_MAX_SIZE)
         {
@@ -495,19 +511,22 @@ int post_process_fp(float *input0, float *input1, float *input2, int model_in_h,
         float x2 = x1 + filterBoxes[n * 4 + 2];
         float y2 = y1 + filterBoxes[n * 4 + 3];
         int id = classId[n];
-
+        
         DetectBox detbox;
         detbox.x1 = (int)((clamp(x1, 0, model_in_w) - w_offset) / resize_scale);
         detbox.y1 = (int)((clamp(y1, 0, model_in_h) - h_offset) / resize_scale);
         detbox.x2 = (int)((clamp(x2, 0, model_in_w) - w_offset) / resize_scale);
         detbox.y2 = (int)((clamp(y2, 0, model_in_h)  - h_offset) / resize_scale);
+        
         detbox.confidence = boxesScore[i];
+        
         detbox.classID = id;
         char *label = labels[id];
         strncpy(detbox.name, label, OBJ_NAME_MAX_SIZE);
         group->results.push_back(detbox);
         // printf("result %2d: (%4d, %4d, %4d, %4d), %s\n", i, detbox.box.left, detbox.box.top,
         //        detbox.box.right, detbox.box.bottom, label);
+        
         last_count++;
     }
     group->count = last_count;

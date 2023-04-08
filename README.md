@@ -1,5 +1,23 @@
 # Yolov5_DeepSORT_rknn
 
+****
+# 改动: 
+
+## 本仓库在原仓库的基础上:
+1. 改善了边界框漂移, 完善了当图中没有目标等其他情形出现的bug, 增加了对cost matrix出现nan时的处理
+2. 加入了隔帧检测的功能. 设置方法:
+> 在`./yolov5/include/detect.h`中 将
+> `const int det_interval = 1;`改成期望的数值, 例如3, 表示每隔3帧检测一次, 这样可以**显著提升速度**. 
+> 同时, 也需要更改`./deepsort/include/deepsort.h`中`line 39`的`const int track_interval = 1; `, 数值要和检测的保持一致.
+3. 加入Re-ID多线程的功能
+> 如果您不希望使用多线程, 则在`./deepsort/src/deepsort.cpp`中`line 144`的`if (numOfDetections < 2)`
+> 改成`if (true)`  
+
+
+自己使用时, 除了更改OpenCV的路径外, 要在`./include/common.h`中修改`IMG_WIDTH, IMG_HEIGHT, IMG_PAD, OBJ_CLASS_NUM`
+在`./yolov5/src/decode.cpp`中修改`LABEL_NALE_TXT_PATH`.
+****
+
 [![standard-readme compliant](https://img.shields.io/badge/readme%20style-standard-brightgreen.svg?style=flat-square)](https://github.com/RichardLitt/standard-readme)
 
 Yolov5_DeepSORT_rknn是基于瑞芯微Rockchip Neural Network(RKNN)开发的目标跟踪部署仓库，除了DeepSORT还支持SORT算法，可以根据不同的嵌入式平台选择合适的跟踪算法。本仓库中的DeepSORT在Rk3588上测试通过，SORT和ByteTrack应该在Rk3588和Rk3399Pro上都可运行。

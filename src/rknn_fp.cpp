@@ -148,7 +148,9 @@ int rknn_fp::inference(unsigned char *data){
 
     // inputs[0].buf = img.data;
 	int width  = _input_attrs[0].dims[2];
+	// std::cout << "checkpoint in rknn_fp: " << sizeof(data) << " " << width*_input_attrs[0].dims[1]*_input_attrs[0].dims[3] << "\n";
 	memcpy(_input_mems[0]->virt_addr, data, width*_input_attrs[0].dims[1]*_input_attrs[0].dims[3]);
+	// std::cout << "checkpoint in rknn_fp\n";
 	// if(img.data) free(img.data);
 	unsigned char * buff = (unsigned char *)_input_mems[0]->virt_addr;
 
